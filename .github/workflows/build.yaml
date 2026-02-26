@@ -45,5 +45,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bifrost-linux-amd64
-          path: build/linux/amd64/bifrost
+          name: bifrost-cli-binaries
+          path: build/*/*/bifrost
