@@ -50,5 +50,5 @@ jobs:
         id: upload-artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bifrost-cli-binaries
+          name: bifrost-binaries
           path: build/bifrost-*
