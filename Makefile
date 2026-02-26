@@ -18,17 +18,16 @@ deps: ## Download Go dependencies
 	go mod download
 	go mod tidy
 
-build: ## Build binary for local architecture
-	CGO_ENABLED=0 go build $(BUILD_FLAGS) -o $(BUILD_DIR)/$(GOOS)/$(GOARCH)/$(EXEC_NAME) ./cmd/bifrost
+build: build-$(GOOS)-$(GOARCH) ## Build binary for local architecture
 
-build-%: ## Build binary for specified target OS and architecture (e.g. make build-linux-amd64)
+build-%: ## Build binary for specified target OS and architecture (e.g. build-linux-amd64)
 	$(eval GOOS := $(word 1, $(subst -, ,$*)))
 	$(eval GOARCH := $(word 2, $(subst -, ,$*)))
-	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build $(BUILD_FLAGS) -o $(BUILD_DIR)/$(GOOS)/$(GOARCH)/$(EXEC_NAME) ./cmd/bifrost
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 go build $(BUILD_FLAGS) -o $(BUILD_DIR)/$(EXEC_NAME)-$(GOOS)-$(GOARCH) ./cmd/bifrost
 
 build-all: $(addprefix build-,$(TARGETS)) ## Build binaries for all supported targets
 
-.PHONY: build-all
+.PHONY: build build-all
 
 lint: ## Run linters
 	docker run --rm -v ${PWD}:/app -w /app golangci/golangci-lint:v2.10.1-alpine golangci-lint run
