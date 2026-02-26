@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version of new release (ex. 1.8.2)'
+        required: true
+        type: string
+
+run-name: Release v${{ inputs.version }}
+
+env:
+  RELEASE_TAG: v${{ inputs.version }}
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yaml
+    with:
+      version: ${{ inputs.version }}
+
+  release:
+    name: Generate release ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Git user
+        uses: fregante/setup-git-user@v2
+
+      - name: Git tag
+        run: |
+          git tag -a $RELEASE_TAG ${{ github.sha }} -m "$RELEASE_TAG"
+          git push origin refs/tags/$RELEASE_TAG
+
+      - name: Generate CHANGELOG
+        id: changelog
+        uses: requarks/changelog-action@v1
+        with:
+          token: ${{ github.token }}
+          tag: ${{ env.RELEASE_TAG }}
+          includeInvalidCommits: true
+
+      - uses: actions/download-artifact@v5
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          path: 'build'
+
+      - name: Create GitHub release
+        id: github-release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          draft: false
+          makeLatest: true
+          name: ${{ env.RELEASE_TAG }}
+          tag: ${{ env.RELEASE_TAG }}
+          body: ${{ steps.changelog.outputs.changes }}
+          token: ${{ github.token }}
+          artifacts: 'build/bifrost-*'
+
+      - name: Slackify changelog
+        id: slackify
+        uses: LoveToKnow/slackify-markdown-action@v1
+        with:
+          text: ${{ steps.changelog.outputs.changes }}
+
+      - name: Slack notification
+        uses: ravsamhq/notify-slack-action@v2
+        with:
+          status: "success"
+          notification_title: ":rocket: Release of *${{ github.repository }}* <${{ steps.github-release.outputs.html_url }}|${{ env.RELEASE_TAG }}>"
+          message_format: ${{ steps.slackify.outputs.text }}
+          footer: "Linked Repo <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}>"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
