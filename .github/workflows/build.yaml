@@ -48,7 +48,7 @@ jobs:
         run: |
           VERSION="${{ inputs.version }}"
           if [ -z "$VERSION" ]; then
-            VERSION=$(git describe --tags --always)
+            VERSION=$(git describe --tags --always | sed 's/^v//')
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
