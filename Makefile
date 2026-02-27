@@ -1,5 +1,5 @@
 VERSION := $(shell git describe --long --dirty)
-GIT_COMMIT := $(shell git rev-parse --short HEAD)
+GIT_COMMIT := $(shell git rev-parse HEAD)
 EXEC_NAME = bifrost
 BUILD_DIR = build
 GOOS = $(shell go env GOOS)
@@ -27,8 +27,6 @@ build-%: ## Build binary for specified target OS and architecture (e.g. build-li
 
 build-all: $(addprefix build-,$(TARGETS)) ## Build binaries for all supported targets
 
-.PHONY: build build-all
-
 lint: ## Run linters
 	docker run --rm -v ${PWD}:/app -w /app golangci/golangci-lint:v2.10.1-alpine golangci-lint run
 
@@ -40,7 +38,15 @@ tidy: ## Update go.mod to reflect the dependencies used in source code
 
 check: tidy lint test ## Run all code quality checks
 
+sbom-%: ## Generate SBOM in CycloneDX format for specified target OS and architecture (e.g. sbom-linux-amd64)
+	@mkdir -p build
+	$(eval GOOS := $(word 1, $(subst -, ,$*)))
+	$(eval GOARCH := $(word 2, $(subst -, ,$*)))
+	docker run --rm -v ${PWD}:/app -w /app -e GOOS=$(GOOS) -e GOARCH=$(GOARCH) -e CGO_ENABLED=0 cyclonedx/cyclonedx-gomod app -json=true -main cmd/bifrost > build/sbom_application_$*.cdx.json
+
+sbom: $(addprefix sbom-,$(TARGETS)) ## Generate SBOMs for all supported targets
+
 clean: ## Clean build artifacts
 	rm -rf $(BUILD_DIR)
 
-.PHONY: help
+.PHONY: help build build-all check sbom clean
