@@ -50,7 +50,7 @@ jobs:
         uses: CycloneDX/gh-gomod-generate-sbom@v2
         with:
           version: v1
-          args: app -json -main -main cmd/bifrost -output sbom.cdx.json
+          args: app -json -main cmd/bifrost -output sbom.cdx.json
 
       - name: Upload artifact
         id: upload-artifact
