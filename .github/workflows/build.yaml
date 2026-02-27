@@ -46,6 +46,12 @@ jobs:
       - name: Build binaries
         run: make GIT_COMMIT=${{ github.sha }} ${{ inputs.version && format('VERSION={0}', inputs.version) || '' }} build-all
 
+      - name: Generate SBOM
+        uses: CycloneDX/gh-gomod-generate-sbom@v2
+        with:
+          version: v1
+          args: app -json -main -main cmd/bifrost -output sbom.cdx.json
+
       - name: Upload artifact
         id: upload-artifact
         uses: actions/upload-artifact@v4
