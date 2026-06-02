@@ -62,9 +62,10 @@ jobs:
           args: app -json -main cmd/bifrost -output sbom.cdx.json
 
       - name: Upload SBOM to bifrost
+        if: ${{ github.repository_owner == 'bifrostsec' && vars.BIFROST_API_HOST != '' }}
         uses: bifrostsec/submit-sbom-action@v1
         with:
-          api-host: 'https://portal.bifrostsec.dev'
+          api-host: ${{ vars.BIFROST_API_HOST }}
           api-token: ${{ secrets.BIFROST_API_KEY }}
           service: 'bifrost-cli'
           service-version: ${{ steps.version.outputs.version }}
