@@ -62,7 +62,7 @@ jobs:
           args: app -json -main cmd/bifrost -output sbom.cdx.json
 
       - name: Upload SBOM to bifrost
-        if: ${{ github.repository_owner == 'bifrostsec' && vars.BIFROST_API_HOST != '' }}
+        if: ${{ github.repository_owner == 'bifrostsec' }}
         uses: bifrostsec/submit-sbom-action@v1
         with:
           api-host: ${{ vars.BIFROST_API_HOST }}
