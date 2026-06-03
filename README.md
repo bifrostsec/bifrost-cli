@@ -1,4 +1,4 @@
-# bifrost CLI
+# bifrost-cli
 
 A command-line tool for uploading SBOM (Software Bill of Materials) files to bifrost.
 
