@@ -20,48 +20,48 @@ To use the CLI, you first need a bifrost account and an API token.
 1. Create an account or sign in to the [bifrost portal](https://portal.bifrostsec.com/).
 2. Create an API token for your organization in the organization settings.
 3. Choose how you want to install the CLI.
-
-### Download the released executable:
-
-```bash
-# Example for macOS on Apple Silicon
-curl -L -o bifrost https://github.com/bifrostsec/bifrost-cli/releases/latest/download/bifrost-darwin-arm64
-chmod +x ./bifrost
-```
-
-*macOS note: the current macOS release binaries are not signed with an Apple Developer certificate. When you first run `./bifrost`, macOS may block it with a warning such as:*
-
-> **“bifrost” Not Opened**  
-> Apple could not verify “bifrost” is free of malware that may harm your Mac or compromise your privacy
-
-To allow the binary to run on macOS:
-
-1. Try to run `./bifrost` once so macOS registers the blocked executable.
-2. Open `System Settings` > `Privacy & Security`.
-3. Scroll down to the `Security` section and click `Allow Anyway` for `bifrost`.
-4. Confirm with your login password if prompted.
-5. Run `./bifrost` again.
-
-*The `Allow Anyway` button is only shown for a limited time after the blocked launch attempt, so if you do not see it, run `./bifrost` again and return to `Privacy & Security`.*
-
-Release assets are published at:
-
-- [github.com/bifrostsec/bifrost-cli/releases/latest](https://github.com/bifrostsec/bifrost-cli/releases/latest)
-
-Available executable names include:
-
-- `bifrost-darwin-amd64`
-- `bifrost-darwin-arm64`
-- `bifrost-linux-amd64`
-- `bifrost-linux-arm64`
-- `bifrost-windows-386`
-- `bifrost-windows-amd64`
-
-### Or build the CLI from source:
-
-```bash
-make build
-```
+    
+    ### Download the released executable:
+    
+    ```bash
+    # Example for macOS on Apple Silicon
+    curl -L -o bifrost https://github.com/bifrostsec/bifrost-cli/releases/latest/download/bifrost-darwin-arm64
+    chmod +x ./bifrost
+    ```
+    
+    *macOS note: the current macOS release binaries are not signed with an Apple Developer certificate. When you first run `./bifrost`, macOS may block it with a warning such as:*
+    
+    > **“bifrost” Not Opened**  
+    > Apple could not verify “bifrost” is free of malware that may harm your Mac or compromise your privacy
+    
+    To allow the binary to run on macOS:
+    
+    1. Try to run `./bifrost` once so macOS registers the blocked executable.
+    2. Open `System Settings` > `Privacy & Security`.
+    3. Scroll down to the `Security` section and click `Allow Anyway` for `bifrost`.
+    4. Confirm with your login password if prompted.
+    5. Run `./bifrost` again.
+    
+    *The `Allow Anyway` button is only shown for a limited time after the blocked launch attempt, so if you do not see it, run `./bifrost` again and return to `Privacy & Security`.*
+    
+    Release assets are published at:
+    
+    - [github.com/bifrostsec/bifrost-cli/releases/latest](https://github.com/bifrostsec/bifrost-cli/releases/latest)
+    
+    Available executable names include:
+    
+    - `bifrost-darwin-amd64`
+      - `bifrost-darwin-arm64`
+      - `bifrost-linux-amd64`
+      - `bifrost-linux-arm64`
+      - `bifrost-windows-386`
+      - `bifrost-windows-amd64`
+    
+    ### Or build the CLI from source:
+    
+    ```bash
+    make build
+    ```
 
 4. Upload an SBOM for a service and version:
 
