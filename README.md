@@ -51,11 +51,11 @@ To use the CLI, you first need a bifrost account and an API token.
     Available executable names include:
     
     - `bifrost-darwin-amd64`
-      - `bifrost-darwin-arm64`
-      - `bifrost-linux-amd64`
-      - `bifrost-linux-arm64`
-      - `bifrost-windows-386`
-      - `bifrost-windows-amd64`
+    - `bifrost-darwin-arm64`
+    - `bifrost-linux-amd64`
+    - `bifrost-linux-arm64`
+    - `bifrost-windows-386`
+    - `bifrost-windows-amd64`
     
     ### Or build the CLI from source:
     
