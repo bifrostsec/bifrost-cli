@@ -1,8 +1,8 @@
-# Bifrost CLI
+# bifrost CLI
 
 A command-line tool for uploading SBOM (Software Bill of Materials) files to bifrost.
 
-This repository contains the `bifrost` CLI, which lets you submit SBOMs for a specific service and version to your bifrost organization. It is intended for local automation and CI/CD workflows where you already produce SBOMs as part of your build pipeline.
+This repository contains the `bifrost-cli`, which lets you submit SBOMs for a specific service and version to your bifrost organization. It is intended for local automation and CI/CD workflows where you already produce SBOMs as part of your build pipeline.
 
 ## What is bifrost?
 
