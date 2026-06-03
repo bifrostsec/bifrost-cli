@@ -21,7 +21,7 @@ To use the CLI, you first need a bifrost account and an API token.
 2. Create an API token for your organization in the organization settings.
 3. Choose how you want to install the CLI.
 
-Download the released executable:
+### Download the released executable:
 
 ```bash
 # Example for macOS on Apple Silicon
@@ -57,7 +57,7 @@ Available executable names include:
 - `bifrost-windows-386`
 - `bifrost-windows-amd64`
 
-Or build the CLI from source:
+### Or build the CLI from source:
 
 ```bash
 make build
