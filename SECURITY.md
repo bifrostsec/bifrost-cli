@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you believe you have found a security vulnerability in `bifrost-cli`, please report it privately by emailing [hello@bifrostsec.com](mailto:hello@bifrostsec.com).
+If you believe you have found a security vulnerability in `bifrost-cli`, please report it privately by emailing [security@bifrostsec.com](mailto:security@bifrostsec.com).
 
 Please include:
 
