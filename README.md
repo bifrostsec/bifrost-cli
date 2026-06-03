@@ -29,9 +29,9 @@ curl -L -o bifrost https://github.com/bifrostsec/bifrost-cli/releases/latest/dow
 chmod +x ./bifrost
 ```
 
-macOS note: the current macOS release binaries are not signed with an Apple Developer certificate. When you first run `./bifrost`, macOS may block it with a warning such as:
+*macOS note: the current macOS release binaries are not signed with an Apple Developer certificate. When you first run `./bifrost`, macOS may block it with a warning such as:*
 
-> “bifrost” Not Opened  
+> **“bifrost” Not Opened**  
 > Apple could not verify “bifrost” is free of malware that may harm your Mac or compromise your privacy
 
 To allow the binary to run on macOS:
@@ -42,7 +42,7 @@ To allow the binary to run on macOS:
 4. Confirm with your login password if prompted.
 5. Run `./bifrost` again.
 
-The `Allow Anyway` button is only shown for a limited time after the blocked launch attempt, so if you do not see it, run `./bifrost` again and return to `Privacy & Security`.
+*The `Allow Anyway` button is only shown for a limited time after the blocked launch attempt, so if you do not see it, run `./bifrost` again and return to `Privacy & Security`.*
 
 Release assets are published at:
 
