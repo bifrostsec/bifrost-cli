@@ -48,25 +48,12 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 			if stdinConsumed {
 				return fmt.Errorf("stdin can only be used once")
 			}
-			content, err := io.ReadAll(os.Stdin)
-			if err != nil {
-				return fmt.Errorf("failed to read SBOM from stdin: %w", err)
-			}
-			if err := api.UploadSBOMBytes(ctx, t.service, t.serviceVersion, "stdin", content); err != nil {
+			if err := t.uploadStdinSBOM(ctx, api); err != nil {
 				return err
 			}
 			stdinConsumed = true
 			fmt.Printf("Uploaded stdin to %s\n", t.ServerURL)
 			continue
-		}
-
-		// Check that file exists and is a regular file before attempting upload
-		info, err := os.Stat(path)
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return fmt.Errorf("directory instead of file: %s", path)
 		}
 
 		if err := api.UploadSBOMFile(ctx, t.service, t.serviceVersion, path); err != nil {
@@ -75,4 +62,25 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 		fmt.Printf("Uploaded %s to %s\n", path, t.ServerURL)
 	}
 	return nil
+}
+
+func (t sbomUploadTask) uploadStdinSBOM(ctx context.Context, api API) error {
+	tmpFile, err := os.CreateTemp("", "bifrost-stdin-sbom-*.json")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file for stdin SBOM: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	defer func() {
+		_ = os.Remove(tmpPath)
+	}()
+
+	if _, err := io.Copy(tmpFile, os.Stdin); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to read SBOM from stdin: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to finalize stdin SBOM temp file: %w", err)
+	}
+
+	return api.UploadSBOMFile(ctx, t.service, t.serviceVersion, tmpPath)
 }

@@ -148,17 +148,10 @@ func TestAPI_UploadSBOM_DoesNotRetryClientFailure(t *testing.T) {
 	assert.EqualValues(t, 1, attempts.Load())
 }
 
-func TestAPI_UploadSBOMBytes(t *testing.T) {
-	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"name":"stdin","version":"1.0"}`, string(body))
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer httpServer.Close()
-
-	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
-
-	err := api.UploadSBOMBytes(context.Background(), "test-service", "test-version", "stdin", []byte(`{"name":"stdin","version":"1.0"}`))
-	assert.NoError(t, err)
+func TestAPI_NewAPI_NormalizesNegativeRetryConfiguration(t *testing.T) {
+	client := NewAPI("https://example.com", "test-token", -1, -1*time.Second)
+	internalAPI, ok := client.(*api)
+	assert.True(t, ok)
+	assert.Equal(t, 0, internalAPI.retryAttempts)
+	assert.Equal(t, time.Duration(0), internalAPI.retryDelay)
 }

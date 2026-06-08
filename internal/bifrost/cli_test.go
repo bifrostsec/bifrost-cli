@@ -5,6 +5,7 @@ package bifrost
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -43,7 +44,11 @@ func TestCLI_ValidCommand(t *testing.T) {
 }
 
 func TestCLI_ValidCommandFromStdin(t *testing.T) {
+	var body string
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestBody, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		body = string(requestBody)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpServer.Close()
@@ -78,6 +83,7 @@ func TestCLI_ValidCommandFromStdin(t *testing.T) {
 
 	exitCode := CLI("1.0", "commit", args)
 	assert.Equal(t, 0, exitCode)
+	assert.Equal(t, `{"name":"stdin","version":"1.0"}`, body)
 }
 
 func TestCLI_InvalidCommand(t *testing.T) {

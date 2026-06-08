@@ -4,7 +4,6 @@
 package bifrost
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,7 +21,6 @@ const (
 
 type API interface {
 	UploadSBOMFile(ctx context.Context, service string, serviceVersion string, filePath string) error
-	UploadSBOMBytes(ctx context.Context, service string, serviceVersion string, sourceName string, content []byte) error
 }
 
 type api struct {
@@ -34,6 +32,12 @@ type api struct {
 }
 
 func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration) API {
+	if retryAttempts < 0 {
+		retryAttempts = 0
+	}
+	if retryDelay < 0 {
+		retryDelay = 0
+	}
 	return &api{
 		client:        http.Client{},
 		serverUrl:     serverURL,
@@ -64,16 +68,10 @@ func (a *api) UploadSBOMFile(ctx context.Context, service string, serviceVersion
 	})
 }
 
-func (a *api) UploadSBOMBytes(ctx context.Context, service string, serviceVersion string, sourceName string, content []byte) error {
-	return a.uploadSBOM(ctx, service, serviceVersion, sourceName, func() (io.ReadCloser, error) {
-		return io.NopCloser(bytes.NewReader(content)), nil
-	})
-}
-
-func (a *api) uploadSBOM(ctx context.Context, service string, serviceVersion string, sourceName string, openBody func() (io.ReadCloser, error)) error {
+func (a *api) uploadSBOM(ctx context.Context, service string, serviceVersion string, sourceLabel string, openBody func() (io.ReadCloser, error)) error {
 	var err error
 	for attempt := 0; attempt <= a.retryAttempts; attempt++ {
-		err = a.uploadSBOMOnce(ctx, service, serviceVersion, sourceName, openBody)
+		err = a.uploadSBOMOnce(ctx, service, serviceVersion, sourceLabel, openBody)
 		if err == nil {
 			return nil
 		}
@@ -88,7 +86,7 @@ func (a *api) uploadSBOM(ctx context.Context, service string, serviceVersion str
 	return err
 }
 
-func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion string, sourceName string, openBody func() (io.ReadCloser, error)) error {
+func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion string, sourceLabel string, openBody func() (io.ReadCloser, error)) error {
 	file, err := openBody()
 	if err != nil {
 		return err
@@ -120,10 +118,10 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 
 	if resp.StatusCode != http.StatusOK {
 		return &uploadError{
-			filePath:   sourceName,
-			statusCode: resp.StatusCode,
-			status:     resp.Status,
-			body:       string(body),
+			sourceLabel: sourceLabel,
+			statusCode:  resp.StatusCode,
+			status:      resp.Status,
+			body:        string(body),
 		}
 	}
 
@@ -131,14 +129,14 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 }
 
 type uploadError struct {
-	filePath   string
-	statusCode int
-	status     string
-	body       string
+	sourceLabel string
+	statusCode  int
+	status      string
+	body        string
 }
 
 func (e *uploadError) Error() string {
-	return fmt.Sprintf("upload failed %s: %s: %s", e.filePath, e.status, e.body)
+	return fmt.Sprintf("upload failed %s: %s: %s", e.sourceLabel, e.status, e.body)
 }
 
 type requestError struct {
