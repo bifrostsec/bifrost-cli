@@ -29,6 +29,7 @@ type api struct {
 	token         string
 	retryAttempts int
 	retryDelay    time.Duration
+	retryOutput   io.Writer
 }
 
 func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration) API {
@@ -44,6 +45,7 @@ func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.D
 		token:         token,
 		retryAttempts: retryAttempts,
 		retryDelay:    retryDelay,
+		retryOutput:   os.Stderr,
 	}
 }
 
@@ -78,12 +80,28 @@ func (a *api) uploadSBOM(ctx context.Context, service string, serviceVersion str
 		if attempt == a.retryAttempts || !shouldRetry(err) {
 			return err
 		}
+		a.printRetryMessage(sourceLabel, err, attempt+1)
 		if err := sleepWithContext(ctx, a.retryDelay); err != nil {
 			return err
 		}
 	}
 
 	return err
+}
+
+func (a *api) printRetryMessage(sourceLabel string, err error, retryNumber int) {
+	if a.retryOutput == nil {
+		return
+	}
+	_, _ = fmt.Fprintf(
+		a.retryOutput,
+		"Upload failed for %s: %v. Retrying in %s (%d/%d)\n",
+		sourceLabel,
+		err,
+		a.retryDelay,
+		retryNumber,
+		a.retryAttempts,
+	)
 }
 
 func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion string, sourceLabel string, openBody func() (io.ReadCloser, error)) error {

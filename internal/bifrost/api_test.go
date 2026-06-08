@@ -4,6 +4,7 @@
 package bifrost
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
@@ -119,11 +120,17 @@ func TestAPI_UploadSBOM_RetriesTransientFailure(t *testing.T) {
 		_ = os.Remove(path)
 	}()
 
-	api := NewAPI(httpServer.URL, "test-token", 2, time.Millisecond)
+	client := NewAPI(httpServer.URL, "test-token", 2, time.Millisecond)
+	internalAPI, ok := client.(*api)
+	assert.True(t, ok)
+	var retryOutput bytes.Buffer
+	internalAPI.retryOutput = &retryOutput
 
-	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
+	err = client.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 3, attempts.Load())
+	assert.Contains(t, retryOutput.String(), "Retrying in 1ms (1/2)")
+	assert.Contains(t, retryOutput.String(), "Retrying in 1ms (2/2)")
 }
 
 func TestAPI_UploadSBOM_DoesNotRetryClientFailure(t *testing.T) {
