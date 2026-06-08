@@ -44,7 +44,7 @@ func TestAPI_UploadSBOM(t *testing.T) {
 	serviceVersion := "test-version"
 	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
 
-	err = api.UploadSBOM(context.Background(), service, serviceVersion, path)
+	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
 	assert.NoError(t, err)
 }
 
@@ -65,7 +65,7 @@ func TestAPI_UploadSBOM_Error(t *testing.T) {
 	serviceVersion := "test-version"
 	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
 
-	err = api.UploadSBOM(context.Background(), service, serviceVersion, path)
+	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
 	assert.Error(t, err)
 }
 
@@ -77,7 +77,7 @@ func TestAPI_UploadSBOM_FileNotFound(t *testing.T) {
 
 	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
 
-	err := api.UploadSBOM(context.Background(), "test-service", "test-version", "nonexistent-file.json")
+	err := api.UploadSBOMFile(context.Background(), "test-service", "test-version", "nonexistent-file.json")
 	assert.Error(t, err)
 }
 
@@ -97,7 +97,7 @@ func TestAPI_UploadSBOM_NotRegularFile(t *testing.T) {
 
 	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
 
-	err = api.UploadSBOM(context.Background(), "test-service", "test-version", dirPath)
+	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", dirPath)
 	assert.Error(t, err)
 }
 
@@ -121,7 +121,7 @@ func TestAPI_UploadSBOM_RetriesTransientFailure(t *testing.T) {
 
 	api := NewAPI(httpServer.URL, "test-token", 2, time.Millisecond)
 
-	err = api.UploadSBOM(context.Background(), "test-service", "test-version", path)
+	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 3, attempts.Load())
 }
@@ -143,7 +143,22 @@ func TestAPI_UploadSBOM_DoesNotRetryClientFailure(t *testing.T) {
 
 	api := NewAPI(httpServer.URL, "test-token", 5, time.Millisecond)
 
-	err = api.UploadSBOM(context.Background(), "test-service", "test-version", path)
+	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
 	assert.Error(t, err)
 	assert.EqualValues(t, 1, attempts.Load())
+}
+
+func TestAPI_UploadSBOMBytes(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"name":"stdin","version":"1.0"}`, string(body))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
+
+	err := api.UploadSBOMBytes(context.Background(), "test-service", "test-version", "stdin", []byte(`{"name":"stdin","version":"1.0"}`))
+	assert.NoError(t, err)
 }

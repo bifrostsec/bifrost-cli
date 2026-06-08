@@ -42,6 +42,44 @@ func TestCLI_ValidCommand(t *testing.T) {
 	assert.Equal(t, 0, exitCode)
 }
 
+func TestCLI_ValidCommandFromStdin(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	stdinFile, err := os.CreateTemp("", "stdin-sbom-*.json")
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(stdinFile.Name())
+	}()
+
+	_, err = stdinFile.WriteString(`{"name":"stdin","version":"1.0"}`)
+	assert.NoError(t, err)
+	_, err = stdinFile.Seek(0, 0)
+	assert.NoError(t, err)
+	defer func() {
+		_ = stdinFile.Close()
+	}()
+
+	originalStdin := os.Stdin
+	os.Stdin = stdinFile
+	defer func() {
+		os.Stdin = originalStdin
+	}()
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"sbom", "upload", "-",
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 0, exitCode)
+}
+
 func TestCLI_InvalidCommand(t *testing.T) {
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
