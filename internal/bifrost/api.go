@@ -170,6 +170,9 @@ func (e *requestError) Unwrap() error {
 }
 
 func shouldRetry(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
 	var uploadErr *uploadError
 	if errors.As(err, &uploadErr) {
 		return uploadErr.statusCode == http.StatusRequestTimeout ||

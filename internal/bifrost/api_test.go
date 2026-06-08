@@ -6,6 +6,8 @@ package bifrost
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -161,4 +163,18 @@ func TestAPI_NewAPI_NormalizesNegativeRetryConfiguration(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, 0, internalAPI.retryAttempts)
 	assert.Equal(t, time.Duration(0), internalAPI.retryDelay)
+}
+
+func TestShouldRetry_ContextCancellationIsNotRetryable(t *testing.T) {
+	assert.False(t, shouldRetry(&requestError{cause: context.Canceled}))
+	assert.False(t, shouldRetry(&requestError{cause: context.DeadlineExceeded}))
+}
+
+func TestShouldRetry_WrappedContextCancellationIsNotRetryable(t *testing.T) {
+	assert.False(t, shouldRetry(&requestError{cause: fmt.Errorf("request failed: %w", context.Canceled)}))
+	assert.False(t, shouldRetry(&requestError{cause: fmt.Errorf("request failed: %w", context.DeadlineExceeded)}))
+}
+
+func TestShouldRetry_NonContextRequestErrorIsRetryable(t *testing.T) {
+	assert.True(t, shouldRetry(&requestError{cause: errors.New("connection reset by peer")}))
 }
