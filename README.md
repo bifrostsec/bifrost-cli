@@ -41,6 +41,12 @@ The CLI uploads one or more SBOM files and associates them with a bifrost servic
 ./bifrost --service=my-service --service-version=1.2.3 sbom upload /path/to/sbom.json
 ```
 
+You can control retry behavior for transient upload failures:
+
+```bash
+./bifrost --service=my-service --service-version=1.2.3 --retry-attempts=5 --retry-delay=5s sbom upload /path/to/sbom.json
+```
+
 You can provide the API token through:
 
 - The `BIFROST_API_KEY` environment variable

@@ -5,14 +5,18 @@ package bifrost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
 const (
-	DefaultServerURL = "https://portal.bifrostsec.com"
+	DefaultServerURL     = "https://portal.bifrostsec.com"
+	DefaultRetryAttempts = 3
+	DefaultRetryDelay    = 2 * time.Second
 )
 
 type API interface {
@@ -20,20 +24,42 @@ type API interface {
 }
 
 type api struct {
-	client    http.Client
-	serverUrl string
-	token     string
+	client        http.Client
+	serverUrl     string
+	token         string
+	retryAttempts int
+	retryDelay    time.Duration
 }
 
-func NewAPI(serverURL string, token string) API {
+func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration) API {
 	return &api{
-		client:    http.Client{},
-		serverUrl: serverURL,
-		token:     token,
+		client:        http.Client{},
+		serverUrl:     serverURL,
+		token:         token,
+		retryAttempts: retryAttempts,
+		retryDelay:    retryDelay,
 	}
 }
 
 func (a *api) UploadSBOM(ctx context.Context, service string, serviceVersion string, filePath string) error {
+	var err error
+	for attempt := 0; attempt <= a.retryAttempts; attempt++ {
+		err = a.uploadSBOMOnce(ctx, service, serviceVersion, filePath)
+		if err == nil {
+			return nil
+		}
+		if attempt == a.retryAttempts || !shouldRetry(err) {
+			return err
+		}
+		if err := sleepWithContext(ctx, a.retryDelay); err != nil {
+			return err
+		}
+	}
+
+	return err
+}
+
+func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion string, filePath string) error {
 	fi, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -68,15 +94,69 @@ func (a *api) UploadSBOM(ctx context.Context, service string, serviceVersion str
 
 	resp, err := a.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
+		return &requestError{cause: err}
 	}
 
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("upload failed %s: %s: %s", filePath, resp.Status, string(body))
+		return &uploadError{
+			filePath:   filePath,
+			statusCode: resp.StatusCode,
+			status:     resp.Status,
+			body:       string(body),
+		}
 	}
 
 	return nil
+}
+
+type uploadError struct {
+	filePath   string
+	statusCode int
+	status     string
+	body       string
+}
+
+func (e *uploadError) Error() string {
+	return fmt.Sprintf("upload failed %s: %s: %s", e.filePath, e.status, e.body)
+}
+
+type requestError struct {
+	cause error
+}
+
+func (e *requestError) Error() string {
+	return fmt.Sprintf("failed to send request: %v", e.cause)
+}
+
+func (e *requestError) Unwrap() error {
+	return e.cause
+}
+
+func shouldRetry(err error) bool {
+	var uploadErr *uploadError
+	if errors.As(err, &uploadErr) {
+		return uploadErr.statusCode == http.StatusRequestTimeout ||
+			uploadErr.statusCode == http.StatusTooManyRequests ||
+			uploadErr.statusCode >= http.StatusInternalServerError
+	}
+	var reqErr *requestError
+	return errors.As(err, &reqErr)
+}
+
+func sleepWithContext(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }

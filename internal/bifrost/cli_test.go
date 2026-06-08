@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -85,6 +86,34 @@ func TestCLI_InvalidSBOMPath(t *testing.T) {
 	}
 
 	// Run the CLI with the parsed arguments
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 2, exitCode)
+}
+
+func TestCLI_InvalidRetryAttempts(t *testing.T) {
+	args := []string{
+		"--server-url=https://portal.bifrostsec.com",
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--retry-attempts=-1",
+		"sbom", "upload", "test-sbom.json",
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 2, exitCode)
+}
+
+func TestCLI_InvalidRetryDelay(t *testing.T) {
+	args := []string{
+		"--server-url=https://portal.bifrostsec.com",
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		fmt.Sprintf("--retry-delay=%s", -1*time.Second),
+		"sbom", "upload", "test-sbom.json",
+	}
+
 	exitCode := CLI("1.0", "commit", args)
 	assert.Equal(t, 2, exitCode)
 }

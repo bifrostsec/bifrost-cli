@@ -40,7 +40,7 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 	if len(t.paths) == 0 {
 		return fmt.Errorf("no SBOM file paths provided")
 	}
-	api := NewAPI(t.ServerURL, t.apiKey)
+	api := NewAPI(t.ServerURL, t.apiKey, t.RetryAttempts, t.RetryDelay)
 	for _, path := range t.paths {
 		// Check that file exists and is a regular file before attempting upload
 		info, err := os.Stat(path)
