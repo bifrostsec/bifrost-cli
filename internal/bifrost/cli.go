@@ -69,7 +69,7 @@ func printHeader(version, gitCommit string) {
 
 func printUsage(fl *flag.FlagSet) {
 	_, _ = fmt.Fprintf(os.Stderr, "Usage:\n")
-	_, _ = fmt.Fprintf(os.Stderr, "  bifrost (options) sbom upload <sbom_path>\n\n")
+	_, _ = fmt.Fprintf(os.Stderr, "  bifrost (options) sbom upload <sbom_path|->\n\n")
 	_, _ = fmt.Fprintf(os.Stderr, "Options:\n")
 	fl.PrintDefaults()
 }

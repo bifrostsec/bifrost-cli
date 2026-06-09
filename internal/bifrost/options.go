@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 )
 
 type Options struct {
@@ -15,6 +16,8 @@ type Options struct {
 	apiKey         string
 	service        string
 	serviceVersion string
+	retryAttempts  int
+	retryDelay     time.Duration
 }
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
@@ -22,6 +25,8 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.apiKey, "api-key", "", "Bifrost API key")
 	fl.StringVar(&opts.service, "service", "", "Name of the service")
 	fl.StringVar(&opts.serviceVersion, "service-version", "", "Version of the service")
+	fl.IntVar(&opts.retryAttempts, "retry-attempts", DefaultRetryAttempts, "Number of retry attempts for transient upload failures")
+	fl.DurationVar(&opts.retryDelay, "retry-delay", DefaultRetryDelay, "Delay between upload retry attempts")
 }
 
 func ValidateBaseOptions(opts *Options) error {
@@ -41,6 +46,12 @@ func ValidateBaseOptions(opts *Options) error {
 		if opts.apiKey == "" {
 			return fmt.Errorf("API key is required")
 		}
+	}
+	if opts.retryAttempts < 0 {
+		return fmt.Errorf("retry attempts must be zero or greater")
+	}
+	if opts.retryDelay < 0 {
+		return fmt.Errorf("retry delay must be zero or greater")
 	}
 
 	return nil

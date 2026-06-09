@@ -79,6 +79,34 @@ The CLI uploads one or more SBOM files and associates them with a bifrost servic
 ./bifrost --service=my-service --service-version=1.2.3 sbom upload /path/to/sbom.json
 ```
 
+You can also read an SBOM from standard input by using `-` as the path:
+
+```bash
+cat /path/to/sbom.json | ./bifrost --service=my-service --service-version=1.2.3 sbom upload -
+```
+
+You can control retry behavior for transient upload failures:
+
+```bash
+./bifrost --service=my-service --service-version=1.2.3 --retry-attempts=5 --retry-delay=5s sbom upload /path/to/sbom.json
+```
+
+Example with Trivy generating a CycloneDX SBOM for a container image and piping it directly to bifrost:
+
+```bash
+trivy image --format cyclonedx <image> | ./bifrost --service=my-service --service-version=1.2.3 sbom upload -
+```
+
+Example with GitHub CLI exporting the repository dependency graph SBOM and piping the SPDX document to bifrost:
+
+```bash
+gh api \
+  -H "Accept: application/vnd.github+json" \
+  -H "X-GitHub-Api-Version: 2026-03-10" \
+  /repos/OWNER/REPO/dependency-graph/sbom \
+  --jq '.sbom' | ./bifrost --service=my-service --service-version=1.2.3 sbom upload -
+```
+
 You can provide the API token through:
 
 - The `BIFROST_API_KEY` environment variable

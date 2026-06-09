@@ -6,6 +6,7 @@ package bifrost
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 )
 
@@ -40,21 +41,54 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 	if len(t.paths) == 0 {
 		return fmt.Errorf("no SBOM file paths provided")
 	}
-	api := NewAPI(t.ServerURL, t.apiKey)
+	api := NewAPI(t.ServerURL, t.apiKey, t.retryAttempts, t.retryDelay)
+	stdinConsumed := false
 	for _, path := range t.paths {
-		// Check that file exists and is a regular file before attempting upload
-		info, err := os.Stat(path)
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return fmt.Errorf("directory instead of file: %s", path)
+		if path == "-" {
+			if stdinConsumed {
+				return fmt.Errorf("stdin can only be used once")
+			}
+			if err := t.uploadStdinSBOM(ctx, api); err != nil {
+				return err
+			}
+			stdinConsumed = true
+			fmt.Printf("Uploaded stdin to %s\n", t.ServerURL)
+			continue
 		}
 
-		if err := api.UploadSBOM(ctx, t.service, t.serviceVersion, path); err != nil {
+		if err := api.UploadSBOMFile(ctx, t.service, t.serviceVersion, path); err != nil {
 			return err
 		}
 		fmt.Printf("Uploaded %s to %s\n", path, t.ServerURL)
 	}
 	return nil
+}
+
+func (t sbomUploadTask) uploadStdinSBOM(ctx context.Context, api API) error {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat stdin: %w", err)
+	}
+	if fi.Mode()&os.ModeCharDevice != 0 {
+		return fmt.Errorf("no SBOM was piped to stdin; pipe or redirect an SBOM, e.g. `cat sbom.json | bifrost ... sbom upload -`")
+	}
+
+	tmpFile, err := os.CreateTemp("", "bifrost-stdin-sbom-*.json")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file for stdin SBOM: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	defer func() {
+		_ = os.Remove(tmpPath)
+	}()
+
+	if _, err := io.Copy(tmpFile, os.Stdin); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to read SBOM from stdin: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to finalize stdin SBOM temp file: %w", err)
+	}
+
+	return api.UploadSBOMFile(ctx, t.service, t.serviceVersion, tmpPath)
 }

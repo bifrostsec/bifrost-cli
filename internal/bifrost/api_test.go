@@ -4,12 +4,17 @@
 package bifrost
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -40,9 +45,9 @@ func TestAPI_UploadSBOM(t *testing.T) {
 
 	service := "test-service"
 	serviceVersion := "test-version"
-	api := NewAPI(httpServer.URL, "test-token")
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
 
-	err = api.UploadSBOM(context.Background(), service, serviceVersion, path)
+	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
 	assert.NoError(t, err)
 }
 
@@ -61,9 +66,9 @@ func TestAPI_UploadSBOM_Error(t *testing.T) {
 
 	service := "test-service"
 	serviceVersion := "test-version"
-	api := NewAPI(httpServer.URL, "test-token")
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
 
-	err = api.UploadSBOM(context.Background(), service, serviceVersion, path)
+	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
 	assert.Error(t, err)
 }
 
@@ -73,9 +78,9 @@ func TestAPI_UploadSBOM_FileNotFound(t *testing.T) {
 	}))
 	defer httpServer.Close()
 
-	api := NewAPI(httpServer.URL, "test-token")
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
 
-	err := api.UploadSBOM(context.Background(), "test-service", "test-version", "nonexistent-file.json")
+	err := api.UploadSBOMFile(context.Background(), "test-service", "test-version", "nonexistent-file.json")
 	assert.Error(t, err)
 }
 
@@ -93,8 +98,83 @@ func TestAPI_UploadSBOM_NotRegularFile(t *testing.T) {
 		_ = os.Remove(dirPath)
 	}()
 
-	api := NewAPI(httpServer.URL, "test-token")
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
 
-	err = api.UploadSBOM(context.Background(), "test-service", "test-version", dirPath)
+	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", dirPath)
 	assert.Error(t, err)
+}
+
+func TestAPI_UploadSBOM_RetriesTransientFailure(t *testing.T) {
+	var attempts atomic.Int32
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if attempts.Add(1) < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	client := NewAPI(httpServer.URL, "test-token", 2, time.Millisecond)
+	internalAPI, ok := client.(*api)
+	assert.True(t, ok)
+	var retryOutput bytes.Buffer
+	internalAPI.retryOutput = &retryOutput
+
+	err = client.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
+	assert.NoError(t, err)
+	assert.EqualValues(t, 3, attempts.Load())
+	assert.Contains(t, retryOutput.String(), "Retrying in 1ms (1/2)")
+	assert.Contains(t, retryOutput.String(), "Retrying in 1ms (2/2)")
+}
+
+func TestAPI_UploadSBOM_DoesNotRetryClientFailure(t *testing.T) {
+	var attempts atomic.Int32
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	api := NewAPI(httpServer.URL, "test-token", 5, time.Millisecond)
+
+	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
+	assert.Error(t, err)
+	assert.EqualValues(t, 1, attempts.Load())
+}
+
+func TestAPI_NewAPI_NormalizesNegativeRetryConfiguration(t *testing.T) {
+	client := NewAPI("https://example.com", "test-token", -1, -1*time.Second)
+	internalAPI, ok := client.(*api)
+	assert.True(t, ok)
+	assert.Equal(t, 0, internalAPI.retryAttempts)
+	assert.Equal(t, time.Duration(0), internalAPI.retryDelay)
+}
+
+func TestShouldRetry_ContextCancellationIsNotRetryable(t *testing.T) {
+	assert.False(t, shouldRetry(&requestError{cause: context.Canceled}))
+	assert.False(t, shouldRetry(&requestError{cause: context.DeadlineExceeded}))
+}
+
+func TestShouldRetry_WrappedContextCancellationIsNotRetryable(t *testing.T) {
+	assert.False(t, shouldRetry(&requestError{cause: fmt.Errorf("request failed: %w", context.Canceled)}))
+	assert.False(t, shouldRetry(&requestError{cause: fmt.Errorf("request failed: %w", context.DeadlineExceeded)}))
+}
+
+func TestShouldRetry_NonContextRequestErrorIsRetryable(t *testing.T) {
+	assert.True(t, shouldRetry(&requestError{cause: errors.New("connection reset by peer")}))
 }
