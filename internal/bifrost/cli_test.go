@@ -86,6 +86,38 @@ func TestCLI_ValidCommandFromStdin(t *testing.T) {
 	assert.Equal(t, `{"name":"stdin","version":"1.0"}`, body)
 }
 
+func TestCLI_StdinPathRequiresPipedInput(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	tty, err := os.Open("/dev/tty")
+	if err != nil {
+		t.Skipf("tty not available: %v", err)
+	}
+	defer func() {
+		_ = tty.Close()
+	}()
+
+	originalStdin := os.Stdin
+	os.Stdin = tty
+	defer func() {
+		os.Stdin = originalStdin
+	}()
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"sbom", "upload", "-",
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 2, exitCode)
+}
+
 func TestCLI_InvalidCommand(t *testing.T) {
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

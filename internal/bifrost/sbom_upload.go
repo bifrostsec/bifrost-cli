@@ -65,6 +65,14 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 }
 
 func (t sbomUploadTask) uploadStdinSBOM(ctx context.Context, api API) error {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat stdin: %w", err)
+	}
+	if fi.Mode()&os.ModeCharDevice != 0 {
+		return fmt.Errorf("no SBOM was piped to stdin; pipe or redirect an SBOM, e.g. `cat sbom.json | bifrost ... sbom upload -`")
+	}
+
 	tmpFile, err := os.CreateTemp("", "bifrost-stdin-sbom-*.json")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file for stdin SBOM: %w", err)
