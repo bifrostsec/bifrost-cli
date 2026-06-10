@@ -1,0 +1,23 @@
+name: Bad Workflow
+
+on:
+  workflow_dispatch:
+
+jobs:
+  echo-environment:
+    name: Echo Available Environment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print runner and GitHub context
+        run: |
+          echo "GITHUB_WORKFLOW=$GITHUB_WORKFLOW"
+          echo "GITHUB_RUN_ID=$GITHUB_RUN_ID"
+          echo "GITHUB_RUN_NUMBER=$GITHUB_RUN_NUMBER"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "RUNNER_OS=$RUNNER_OS"
+          echo "RUNNER_ARCH=$RUNNER_ARCH"
+          echo "SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}"
+
+      - name: Print all environment variables
+        run: env | sort
