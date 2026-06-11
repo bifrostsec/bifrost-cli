@@ -25,8 +25,11 @@ func TestAPI_UploadSBOM(t *testing.T) {
 		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		assert.Equal(t, "/api/v2/service/test-service/version/test-version/sbom", r.URL.Path)
-		assert.Empty(t, r.URL.Query().Get("git_branch"))
-		assert.Empty(t, r.URL.Query().Get("git_commit_sha"))
+		query := r.URL.Query()
+		_, hasGitBranch := query["git_branch"]
+		_, hasGitCommitSHA := query["git_commit_sha"]
+		assert.False(t, hasGitBranch)
+		assert.False(t, hasGitCommitSHA)
 
 		// Verify that request body is being read
 		body, err := io.ReadAll(r.Body)
