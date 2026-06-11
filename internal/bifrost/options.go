@@ -18,6 +18,8 @@ type Options struct {
 	serviceVersion string
 	retryAttempts  int
 	retryDelay     time.Duration
+	gitBranch      string
+	gitCommitSHA   string
 }
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
@@ -27,6 +29,8 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.serviceVersion, "service-version", "", "Version of the service")
 	fl.IntVar(&opts.retryAttempts, "retry-attempts", DefaultRetryAttempts, "Number of retry attempts for transient upload failures")
 	fl.DurationVar(&opts.retryDelay, "retry-delay", DefaultRetryDelay, "Delay between upload retry attempts")
+	fl.StringVar(&opts.gitBranch, "git-branch", "", "Optional Git branch name for the uploaded SBOM")
+	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
 }
 
 func ValidateBaseOptions(opts *Options) error {
