@@ -20,7 +20,22 @@ To use the CLI, you first need a bifrost account and an API token.
 1. Create an account or sign in to the [bifrost portal](https://portal.bifrostsec.com/).
 2. Create an API token for your organization in the organization settings.
 3. Choose how you want to install the CLI.
-    
+
+    ### Install with Homebrew (macOS and Linux):
+
+    ```bash
+    brew install bifrostsec/tap/bifrost-cli
+    ```
+
+    This installs the `bifrost` command from the [bifrostsec/homebrew-tap](https://github.com/bifrostsec/homebrew-tap) tap. Homebrew installs run without the macOS Gatekeeper warning described below, so this is the simplest option on macOS. To update later:
+
+    ```bash
+    brew update
+    brew upgrade bifrost-cli
+    ```
+
+    *(Windows is not covered by Homebrew — use one of the options below.)*
+
     ### Download the released executable:
     
     ```bash
