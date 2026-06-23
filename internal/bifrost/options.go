@@ -20,6 +20,7 @@ type Options struct {
 	retryDelay     time.Duration
 	gitBranch      string
 	gitCommitSHA   string
+	gitOrigin      string
 }
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
@@ -31,6 +32,7 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.DurationVar(&opts.retryDelay, "retry-delay", DefaultRetryDelay, "Delay between upload retry attempts")
 	fl.StringVar(&opts.gitBranch, "git-branch", "", "Optional Git branch name for the uploaded SBOM")
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
+	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
 }
 
 func ValidateBaseOptions(opts *Options) error {

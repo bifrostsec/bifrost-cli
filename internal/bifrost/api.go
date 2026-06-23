@@ -32,9 +32,10 @@ type api struct {
 	retryOutput   io.Writer
 	gitBranch     string
 	gitCommitSHA  string
+	gitOrigin     string
 }
 
-func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration, gitBranch string, gitCommitSHA string) API {
+func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration, gitBranch string, gitCommitSHA string, gitOrigin string) API {
 	if retryAttempts < 0 {
 		retryAttempts = 0
 	}
@@ -50,6 +51,7 @@ func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.D
 		retryOutput:   os.Stderr,
 		gitBranch:     gitBranch,
 		gitCommitSHA:  gitCommitSHA,
+		gitOrigin:     gitOrigin,
 	}
 }
 
@@ -133,6 +135,9 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 	}
 	if a.gitCommitSHA != "" {
 		query.Set("git_commit_sha", a.gitCommitSHA)
+	}
+	if a.gitOrigin != "" {
+		query.Set("git_origin", a.gitOrigin)
 	}
 	req.URL.RawQuery = query.Encode()
 

@@ -47,6 +47,7 @@ func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "main", r.URL.Query().Get("git_branch"))
 		assert.Equal(t, "abc123", r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, "https://github.com/example/project.git", r.URL.Query().Get("git_origin"))
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpServer.Close()
@@ -65,6 +66,7 @@ func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
 		"--api-key=test-token",
 		"--git-branch=main",
 		"--git-commit-sha=abc123",
+		"--git-origin=https://github.com/example/project.git",
 		"sbom", "upload", path,
 	}
 

@@ -48,6 +48,7 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 		t.retryDelay,
 		t.gitBranch,
 		t.gitCommitSHA,
+		t.gitOrigin,
 	)
 	stdinConsumed := false
 	for _, path := range t.paths {

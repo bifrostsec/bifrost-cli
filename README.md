@@ -94,7 +94,7 @@ You can control retry behavior for transient upload failures:
 You can attach Git metadata to the upload request:
 
 ```bash
-./bifrost --service=my-service --service-version=1.2.3 --git-branch=main --git-commit-sha=abc123 sbom upload /path/to/sbom.json
+./bifrost --service=my-service --service-version=1.2.3 --git-branch=main --git-commit-sha=abc123 --git-origin=https://github.com/example/project.git sbom upload /path/to/sbom.json
 ```
 
 Example with Trivy generating a CycloneDX SBOM for a container image and piping it directly to bifrost:
