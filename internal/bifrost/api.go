@@ -30,9 +30,12 @@ type api struct {
 	retryAttempts int
 	retryDelay    time.Duration
 	retryOutput   io.Writer
+	gitBranch     string
+	gitCommitSHA  string
+	gitOrigin     string
 }
 
-func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration) API {
+func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration, gitBranch string, gitCommitSHA string, gitOrigin string) API {
 	if retryAttempts < 0 {
 		retryAttempts = 0
 	}
@@ -46,6 +49,9 @@ func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.D
 		retryAttempts: retryAttempts,
 		retryDelay:    retryDelay,
 		retryOutput:   os.Stderr,
+		gitBranch:     gitBranch,
+		gitCommitSHA:  gitCommitSHA,
+		gitOrigin:     gitOrigin,
 	}
 }
 
@@ -122,6 +128,18 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
+
+	query := req.URL.Query()
+	if a.gitBranch != "" {
+		query.Set("git_branch", a.gitBranch)
+	}
+	if a.gitCommitSHA != "" {
+		query.Set("git_commit_sha", a.gitCommitSHA)
+	}
+	if a.gitOrigin != "" {
+		query.Set("git_origin", a.gitOrigin)
+	}
+	req.URL.RawQuery = query.Encode()
 
 	req.Header.Add("Authorization", "Bearer "+a.token)
 	req.Header.Add("Content-Type", "application/json")

@@ -25,6 +25,13 @@ func TestAPI_UploadSBOM(t *testing.T) {
 		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		assert.Equal(t, "/api/v2/service/test-service/version/test-version/sbom", r.URL.Path)
+		query := r.URL.Query()
+		_, hasGitBranch := query["git_branch"]
+		_, hasGitCommitSHA := query["git_commit_sha"]
+		_, hasGitOrigin := query["git_origin"]
+		assert.False(t, hasGitBranch)
+		assert.False(t, hasGitCommitSHA)
+		assert.False(t, hasGitOrigin)
 
 		// Verify that request body is being read
 		body, err := io.ReadAll(r.Body)
@@ -45,9 +52,39 @@ func TestAPI_UploadSBOM(t *testing.T) {
 
 	service := "test-service"
 	serviceVersion := "test-version"
-	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
 
 	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
+	assert.NoError(t, err)
+}
+
+func TestAPI_UploadSBOM_IncludesGitMetadataQueryParams(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "feature/deployments", r.URL.Query().Get("git_branch"))
+		assert.Equal(t, "abc123", r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, "https://github.com/example/project.git", r.URL.Query().Get("git_origin"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	api := NewAPI(
+		httpServer.URL,
+		"test-token",
+		DefaultRetryAttempts,
+		DefaultRetryDelay,
+		"feature/deployments",
+		"abc123",
+		"https://github.com/example/project.git",
+	)
+
+	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
 	assert.NoError(t, err)
 }
 
@@ -66,7 +103,7 @@ func TestAPI_UploadSBOM_Error(t *testing.T) {
 
 	service := "test-service"
 	serviceVersion := "test-version"
-	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
 
 	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
 	assert.Error(t, err)
@@ -78,7 +115,7 @@ func TestAPI_UploadSBOM_FileNotFound(t *testing.T) {
 	}))
 	defer httpServer.Close()
 
-	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
 
 	err := api.UploadSBOMFile(context.Background(), "test-service", "test-version", "nonexistent-file.json")
 	assert.Error(t, err)
@@ -98,7 +135,7 @@ func TestAPI_UploadSBOM_NotRegularFile(t *testing.T) {
 		_ = os.Remove(dirPath)
 	}()
 
-	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay)
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
 
 	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", dirPath)
 	assert.Error(t, err)
@@ -122,7 +159,7 @@ func TestAPI_UploadSBOM_RetriesTransientFailure(t *testing.T) {
 		_ = os.Remove(path)
 	}()
 
-	client := NewAPI(httpServer.URL, "test-token", 2, time.Millisecond)
+	client := NewAPI(httpServer.URL, "test-token", 2, time.Millisecond, "", "", "")
 	internalAPI, ok := client.(*api)
 	assert.True(t, ok)
 	var retryOutput bytes.Buffer
@@ -150,7 +187,7 @@ func TestAPI_UploadSBOM_DoesNotRetryClientFailure(t *testing.T) {
 		_ = os.Remove(path)
 	}()
 
-	api := NewAPI(httpServer.URL, "test-token", 5, time.Millisecond)
+	api := NewAPI(httpServer.URL, "test-token", 5, time.Millisecond, "", "", "")
 
 	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
 	assert.Error(t, err)
@@ -158,7 +195,7 @@ func TestAPI_UploadSBOM_DoesNotRetryClientFailure(t *testing.T) {
 }
 
 func TestAPI_NewAPI_NormalizesNegativeRetryConfiguration(t *testing.T) {
-	client := NewAPI("https://example.com", "test-token", -1, -1*time.Second)
+	client := NewAPI("https://example.com", "test-token", -1, -1*time.Second, "", "", "")
 	internalAPI, ok := client.(*api)
 	assert.True(t, ok)
 	assert.Equal(t, 0, internalAPI.retryAttempts)
