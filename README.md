@@ -27,7 +27,7 @@ To use the CLI, you first need a bifrost account and an API token.
     brew install bifrostsec/tap/bifrost-cli
     ```
 
-    This installs the `bifrost` command from the [bifrostsec/homebrew-tap](https://github.com/bifrostsec/homebrew-tap) tap. Homebrew installs run without the macOS Gatekeeper warning described below, so this is the simplest option on macOS. To update later:
+    This installs the `bifrost` command from the [bifrostsec/homebrew-tap](https://github.com/bifrostsec/homebrew-tap) tap. To update later:
 
     ```bash
     brew update
