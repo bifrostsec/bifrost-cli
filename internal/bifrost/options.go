@@ -25,7 +25,7 @@ type Options struct {
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.ServerURL, "server-url", DefaultServerURL, "URL to bifrost server")
-	fl.StringVar(&opts.apiKey, "api-key", "", "Bifrost API key")
+	fl.StringVar(&opts.apiKey, "api-key", "", "Bifrost API key (or BIFROST_API_KEY environment variable)")
 	fl.StringVar(&opts.service, "service", "", "Name of the service")
 	fl.StringVar(&opts.serviceVersion, "service-version", "", "Version of the service")
 	fl.IntVar(&opts.retryAttempts, "retry-attempts", DefaultRetryAttempts, "Number of retry attempts for transient upload failures")
