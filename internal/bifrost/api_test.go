@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -52,6 +53,34 @@ func TestAPI_UploadSBOM(t *testing.T) {
 
 	service := "test-service"
 	serviceVersion := "test-version"
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
+
+	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
+	assert.NoError(t, err)
+}
+
+func TestAPI_UploadSBOM_EscapesServiceAndVersionPathSegments(t *testing.T) {
+	service := "team/test-service"
+	serviceVersion := "bkimminich/juice-shop@sha256:3f4a1c9e2b8d7f6a5e4d3c2b1a0f9e8d7c6b5a4938271605f4e3d2c1b0a9988"
+	expectedPath := fmt.Sprintf(
+		"/api/v2/service/%s/version/%s/sbom",
+		url.PathEscape(service),
+		url.PathEscape(serviceVersion),
+	)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, expectedPath, r.URL.EscapedPath())
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
 	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
 
 	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
