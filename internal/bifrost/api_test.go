@@ -88,10 +88,19 @@ func TestAPI_UploadSBOM_EscapesServiceAndVersionPathSegments(t *testing.T) {
 }
 
 func TestAPI_UploadSBOM_IncludesGitMetadataQueryParams(t *testing.T) {
+	gitBranch := "feature/deployments & scans"
+	gitCommitSHA := "abc123+digest"
+	gitOrigin := "https://github.com/example/project.git?ref=main&token=a+b"
+	expectedQuery := url.Values{}
+	expectedQuery.Set("git_branch", gitBranch)
+	expectedQuery.Set("git_commit_sha", gitCommitSHA)
+	expectedQuery.Set("git_origin", gitOrigin)
+
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "feature/deployments", r.URL.Query().Get("git_branch"))
-		assert.Equal(t, "abc123", r.URL.Query().Get("git_commit_sha"))
-		assert.Equal(t, "https://github.com/example/project.git", r.URL.Query().Get("git_origin"))
+		assert.Equal(t, expectedQuery.Encode(), r.URL.RawQuery)
+		assert.Equal(t, gitBranch, r.URL.Query().Get("git_branch"))
+		assert.Equal(t, gitCommitSHA, r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, gitOrigin, r.URL.Query().Get("git_origin"))
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpServer.Close()
@@ -108,9 +117,9 @@ func TestAPI_UploadSBOM_IncludesGitMetadataQueryParams(t *testing.T) {
 		"test-token",
 		DefaultRetryAttempts,
 		DefaultRetryDelay,
-		"feature/deployments",
-		"abc123",
-		"https://github.com/example/project.git",
+		gitBranch,
+		gitCommitSHA,
+		gitOrigin,
 	)
 
 	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
