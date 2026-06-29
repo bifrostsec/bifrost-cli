@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 )
@@ -122,7 +123,12 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("%s/api/v2/service/%s/version/%s/sbom", a.serverUrl, service, serviceVersion),
+		fmt.Sprintf(
+			"%s/api/v2/service/%s/version/%s/sbom",
+			a.serverUrl,
+			url.PathEscape(service),
+			url.PathEscape(serviceVersion),
+		),
 		file,
 	)
 	if err != nil {
