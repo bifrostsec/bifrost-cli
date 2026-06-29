@@ -23,6 +23,8 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -55,20 +57,24 @@ jobs:
       - name: Build binaries
         run: make GIT_COMMIT=${{ github.sha }} VERSION=${{ steps.version.outputs.version }} build-all
 
-      - name: Generate SBOM
-        uses: CycloneDX/gh-gomod-generate-sbom@v2
-        with:
-          version: v1
-          args: app -json -main cmd/bifrost -output sbom.cdx.json
+      - name: Generate SBOMs
+        run: make sbom
 
-      - name: Upload SBOM to bifrost
+      - name: Upload SBOMs to bifrost
         if: ${{ github.repository_owner == 'bifrostsec' }}
-        uses: bifrostsec/submit-sbom-action@v1
+        uses: bifrostsec/submit-sbom-action@v1.1.0
         with:
           api-token: ${{ secrets.BIFROST_API_KEY }}
           service: 'bifrost-cli'
           service-version: ${{ steps.version.outputs.version }}
-          sbom-path: 'sbom.cdx.json'
+          dependency-graph: 'true'
+          sbom-path: |
+            build/sbom_application_linux-amd64.cdx.json
+            build/sbom_application_linux-arm64.cdx.json
+            build/sbom_application_darwin-amd64.cdx.json
+            build/sbom_application_darwin-arm64.cdx.json
+            build/sbom_application_windows-386.cdx.json
+            build/sbom_application_windows-amd64.cdx.json
 
       - name: Upload artifact
         id: upload-artifact
