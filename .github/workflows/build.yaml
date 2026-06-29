@@ -57,7 +57,7 @@ jobs:
       - name: Build binaries
         run: make GIT_COMMIT=${{ github.sha }} VERSION=${{ steps.version.outputs.version }} build-all
 
-      - name: Upload SBOMs to bifrost
+      - name: Upload SBOM to bifrost
         if: ${{ github.repository_owner == 'bifrostsec' }}
         uses: bifrostsec/submit-sbom-action@75022880ab1d80abd985c6b5b2c745e5d1d67e88 # v1.1.1
         with:
