@@ -57,9 +57,6 @@ jobs:
       - name: Build binaries
         run: make GIT_COMMIT=${{ github.sha }} VERSION=${{ steps.version.outputs.version }} build-all
 
-      - name: Generate SBOMs
-        run: make sbom
-
       - name: Upload SBOMs to bifrost
         if: ${{ github.repository_owner == 'bifrostsec' }}
         uses: bifrostsec/submit-sbom-action@v1.1.0
@@ -67,14 +64,7 @@ jobs:
           api-token: ${{ secrets.BIFROST_API_KEY }}
           service: 'bifrost-cli'
           service-version: ${{ steps.version.outputs.version }}
-          dependency-graph: 'true'
-          sbom-path: |
-            build/sbom_application_linux-amd64.cdx.json
-            build/sbom_application_linux-arm64.cdx.json
-            build/sbom_application_darwin-amd64.cdx.json
-            build/sbom_application_darwin-arm64.cdx.json
-            build/sbom_application_windows-386.cdx.json
-            build/sbom_application_windows-amd64.cdx.json
+          dependency-graph: true
 
       - name: Upload artifact
         id: upload-artifact
