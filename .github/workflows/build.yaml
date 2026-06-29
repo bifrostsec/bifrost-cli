@@ -27,12 +27,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: 'go.mod'
 
@@ -40,7 +40,7 @@ jobs:
         run: make deps
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
 
       - name: Run tests
         run: make test
@@ -59,7 +59,7 @@ jobs:
 
       - name: Upload SBOMs to bifrost
         if: ${{ github.repository_owner == 'bifrostsec' }}
-        uses: bifrostsec/submit-sbom-action@v1.1.1
+        uses: bifrostsec/submit-sbom-action@75022880ab1d80abd985c6b5b2c745e5d1d67e88 # v1.1.1
         with:
           api-token: ${{ secrets.BIFROST_API_KEY }}
           service: 'bifrost-cli'
@@ -68,7 +68,7 @@ jobs:
 
       - name: Upload artifact
         id: upload-artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: bifrost-binaries
           path: build/bifrost-*
