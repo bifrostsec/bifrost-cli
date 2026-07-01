@@ -1,4 +1,4 @@
-VERSION ?= $(shell git describe --long --dirty)
+VERSION ?= $(shell git describe --tags --dirty --always)
 GIT_COMMIT ?= $(shell git rev-parse HEAD)
 EXEC_NAME = bifrost
 BUILD_DIR = build
