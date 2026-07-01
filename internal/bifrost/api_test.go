@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -59,11 +60,48 @@ func TestAPI_UploadSBOM(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestAPI_UploadSBOM_IncludesGitMetadataQueryParams(t *testing.T) {
+func TestAPI_UploadSBOM_EscapesServiceAndVersionPathSegments(t *testing.T) {
+	service := "team/test-service"
+	serviceVersion := "bkimminich/juice-shop@sha256:3f4a1c9e2b8d7f6a5e4d3c2b1a0f9e8d7c6b5a4938271605f4e3d2c1b0a9988"
+	expectedPath := fmt.Sprintf(
+		"/api/v2/service/%s/version/%s/sbom",
+		url.PathEscape(service),
+		url.PathEscape(serviceVersion),
+	)
+
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "feature/deployments", r.URL.Query().Get("git_branch"))
-		assert.Equal(t, "abc123", r.URL.Query().Get("git_commit_sha"))
-		assert.Equal(t, "https://github.com/example/project.git", r.URL.Query().Get("git_origin"))
+		assert.Equal(t, expectedPath, r.URL.EscapedPath())
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
+
+	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
+	assert.NoError(t, err)
+}
+
+func TestAPI_UploadSBOM_IncludesGitMetadataQueryParams(t *testing.T) {
+	gitBranch := "feature/deployments & scans"
+	gitCommitSHA := "abc123+digest"
+	gitOrigin := "https://github.com/example/project.git?ref=main&token=a+b"
+	expectedQuery := url.Values{}
+	expectedQuery.Set("git_branch", gitBranch)
+	expectedQuery.Set("git_commit_sha", gitCommitSHA)
+	expectedQuery.Set("git_origin", gitOrigin)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, expectedQuery.Encode(), r.URL.RawQuery)
+		assert.Equal(t, gitBranch, r.URL.Query().Get("git_branch"))
+		assert.Equal(t, gitCommitSHA, r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, gitOrigin, r.URL.Query().Get("git_origin"))
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpServer.Close()
@@ -80,9 +118,9 @@ func TestAPI_UploadSBOM_IncludesGitMetadataQueryParams(t *testing.T) {
 		"test-token",
 		DefaultRetryAttempts,
 		DefaultRetryDelay,
-		"feature/deployments",
-		"abc123",
-		"https://github.com/example/project.git",
+		gitBranch,
+		gitCommitSHA,
+		gitOrigin,
 		"1.2.3",
 	)
 
