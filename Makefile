@@ -1,5 +1,5 @@
-VERSION := $(shell git describe --long --dirty)
-GIT_COMMIT := $(shell git rev-parse HEAD)
+VERSION ?= $(shell git describe --tags --dirty --always)
+GIT_COMMIT ?= $(shell git rev-parse HEAD)
 EXEC_NAME = bifrost
 BUILD_DIR = build
 GOOS = $(shell go env GOOS)

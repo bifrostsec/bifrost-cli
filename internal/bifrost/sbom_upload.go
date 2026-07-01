@@ -12,10 +12,11 @@ import (
 
 type sbomUploadTask struct {
 	Options
-	paths []string
+	paths      []string
+	cliVersion string
 }
 
-func NewSBOMUploadTask(opts Options, args []string) (Task, error) {
+func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, error) {
 	if opts.service == "" {
 		opts.service = os.Getenv("SERVICE")
 		if opts.service == "" {
@@ -32,8 +33,9 @@ func NewSBOMUploadTask(opts Options, args []string) (Task, error) {
 		return nil, fmt.Errorf("at least one SBOM file path is required")
 	}
 	return &sbomUploadTask{
-		Options: opts,
-		paths:   args,
+		Options:    opts,
+		paths:      args,
+		cliVersion: cliVersion,
 	}, nil
 }
 
@@ -49,6 +51,7 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 		t.gitBranch,
 		t.gitCommitSHA,
 		t.gitOrigin,
+		t.cliVersion,
 	)
 	stdinConsumed := false
 	for _, path := range t.paths {

@@ -43,7 +43,7 @@ func CLI(version, gitCommit string, args []string) int {
 	var task Task
 	switch {
 	case len(remaining) >= 2 && remaining[0] == "sbom" && remaining[1] == "upload":
-		task, err = NewSBOMUploadTask(options, remaining[2:])
+		task, err = NewSBOMUploadTask(options, remaining[2:], version)
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "Error: Unrecognized command\n\n")
 		printUsage(fl)

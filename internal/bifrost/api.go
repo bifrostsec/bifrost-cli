@@ -18,6 +18,7 @@ const (
 	DefaultServerURL     = "https://portal.bifrostsec.com"
 	DefaultRetryAttempts = 3
 	DefaultRetryDelay    = 2 * time.Second
+	userAgentProduct     = "bifrost-cli"
 )
 
 type API interface {
@@ -34,9 +35,10 @@ type api struct {
 	gitBranch     string
 	gitCommitSHA  string
 	gitOrigin     string
+	userAgent     string
 }
 
-func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration, gitBranch string, gitCommitSHA string, gitOrigin string) API {
+func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration, gitBranch string, gitCommitSHA string, gitOrigin string, version string) API {
 	if retryAttempts < 0 {
 		retryAttempts = 0
 	}
@@ -53,6 +55,7 @@ func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.D
 		gitBranch:     gitBranch,
 		gitCommitSHA:  gitCommitSHA,
 		gitOrigin:     gitOrigin,
+		userAgent:     userAgent(version),
 	}
 }
 
@@ -149,6 +152,7 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 
 	req.Header.Add("Authorization", "Bearer "+a.token)
 	req.Header.Add("Content-Type", "application/json")
+	req.Header.Set("User-Agent", a.userAgent)
 
 	resp, err := a.client.Do(req)
 	if err != nil {
@@ -168,6 +172,13 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 	}
 
 	return nil
+}
+
+func userAgent(version string) string {
+	if version == "" {
+		return userAgentProduct
+	}
+	return fmt.Sprintf("%s/%s", userAgentProduct, version)
 }
 
 type uploadError struct {
