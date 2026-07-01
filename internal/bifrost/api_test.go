@@ -82,7 +82,7 @@ func TestAPI_UploadSBOM_EscapesServiceAndVersionPathSegments(t *testing.T) {
 		_ = os.Remove(path)
 	}()
 
-	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
+	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "", "1.2.3")
 
 	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
 	assert.NoError(t, err)
