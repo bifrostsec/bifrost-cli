@@ -2,7 +2,7 @@
 
 A command-line tool for uploading SBOM (Software Bill of Materials) files to bifrost.
 
-This repository contains the `bifrost-cli`, which lets you submit SBOMs for a specific service and version to your bifrost organization. It is intended for local automation and CI/CD workflows where you already produce SBOMs as part of your build pipeline.
+This repository contains the `bifrost-cli`, which lets you submit SBOMs for a specific service and either a service version, an image reference, or both to your bifrost organization. It is intended for local automation and CI/CD workflows where you already produce SBOMs as part of your build pipeline.
 
 ## What is bifrost?
 
@@ -78,7 +78,7 @@ To use the CLI, you first need a bifrost account and an API token.
     make build
     ```
 
-4. Upload an SBOM for a service and version:
+4. Upload an SBOM for a service with at least one of `--service-version` or `--image`:
 
 ```bash
 BIFROST_API_KEY=my-key ./bifrost --service=name --service-version=34ha353 sbom upload /path/to/sbom.json
@@ -88,7 +88,10 @@ The API token is sent as a bearer token when the CLI uploads the SBOM.
 
 ## Usage
 
-The CLI uploads one or more SBOM files and associates them with a bifrost service and service version.
+The CLI uploads one or more SBOM files and associates them with a bifrost service and at least one of:
+
+- a service version
+- an image reference
 
 ```bash
 ./bifrost --service=my-service --service-version=1.2.3 sbom upload /path/to/sbom.json
@@ -112,10 +115,28 @@ You can attach Git metadata to the upload request:
 ./bifrost --service=my-service --service-version=1.2.3 --git-branch=main --git-commit-sha=abc123 --git-origin=https://github.com/example/project.git sbom upload /path/to/sbom.json
 ```
 
+You can also upload using only the image reference that the SBOM describes:
+
+```bash
+./bifrost --service=my-service --image=registry.example.com/team/app:1.2.3 sbom upload /path/to/sbom.json
+```
+
+You can also provide the image reference through the `IMAGE` or `BIFROST_IMAGE` environment variables:
+
+```bash
+IMAGE=registry.example.com/team/app:1.2.3 ./bifrost --service=my-service sbom upload /path/to/sbom.json
+```
+
+Providing both is also supported and recommended:
+
+```bash
+./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 sbom upload /path/to/sbom.json
+```
+
 Example with Trivy generating a CycloneDX SBOM for a container image and piping it directly to bifrost:
 
 ```bash
-trivy image --format cyclonedx <image> | ./bifrost --service=my-service --service-version=1.2.3 sbom upload -
+trivy image --format cyclonedx <image> | ./bifrost --service=my-service --service-version=1.2.3 --image=<image> sbom upload -
 ```
 
 Example with GitHub CLI exporting the repository dependency graph SBOM and piping the SPDX document to bifrost:

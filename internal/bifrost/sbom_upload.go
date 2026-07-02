@@ -24,9 +24,17 @@ func NewSBOMUploadTask(opts Options, args []string) (Task, error) {
 	}
 	if opts.serviceVersion == "" {
 		opts.serviceVersion = os.Getenv("SERVICE_VERSION")
-		if opts.serviceVersion == "" {
-			return nil, fmt.Errorf("service version is required")
+	}
+	if opts.image == "" {
+		if image := os.Getenv("IMAGE"); image != "" {
+			opts.image = image
 		}
+		if image := os.Getenv("BIFROST_IMAGE"); image != "" {
+			opts.image = image
+		}
+	}
+	if opts.serviceVersion == "" && opts.image == "" {
+		return nil, fmt.Errorf("either service version or image is required")
 	}
 	if len(args) == 0 {
 		return nil, fmt.Errorf("at least one SBOM file path is required")
@@ -49,6 +57,7 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 		t.gitBranch,
 		t.gitCommitSHA,
 		t.gitOrigin,
+		t.image,
 	)
 	stdinConsumed := false
 	for _, path := range t.paths {

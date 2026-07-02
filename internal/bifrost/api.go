@@ -34,9 +34,10 @@ type api struct {
 	gitBranch     string
 	gitCommitSHA  string
 	gitOrigin     string
+	image         string
 }
 
-func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration, gitBranch string, gitCommitSHA string, gitOrigin string) API {
+func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration, gitBranch string, gitCommitSHA string, gitOrigin string, image string) API {
 	if retryAttempts < 0 {
 		retryAttempts = 0
 	}
@@ -53,10 +54,15 @@ func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.D
 		gitBranch:     gitBranch,
 		gitCommitSHA:  gitCommitSHA,
 		gitOrigin:     gitOrigin,
+		image:         image,
 	}
 }
 
 func (a *api) UploadSBOMFile(ctx context.Context, service string, serviceVersion string, filePath string) error {
+	if serviceVersion == "" && a.image == "" {
+		return fmt.Errorf("either service version or image is required")
+	}
+
 	fi, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -124,10 +130,9 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 		ctx,
 		http.MethodPost,
 		fmt.Sprintf(
-			"%s/api/v2/service/%s/version/%s/sbom",
+			"%s/api/v2/service/%s/version/sbom",
 			a.serverUrl,
 			url.PathEscape(service),
-			url.PathEscape(serviceVersion),
 		),
 		file,
 	)
@@ -136,6 +141,12 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 	}
 
 	query := req.URL.Query()
+	if serviceVersion != "" {
+		query.Set("version", serviceVersion)
+	}
+	if a.image != "" {
+		query.Set("image", a.image)
+	}
 	if a.gitBranch != "" {
 		query.Set("git_branch", a.gitBranch)
 	}
