@@ -102,6 +102,34 @@ func TestCLI_ValidCommandWithImage(t *testing.T) {
 	assert.Equal(t, 0, exitCode)
 }
 
+func TestCLI_ValidCommandWithServiceVersionFromEnvironment(t *testing.T) {
+	t.Setenv("SERVICE_VERSION", "1.0-env")
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "1.0-env", r.URL.Query().Get("version"))
+		assert.Empty(t, r.URL.Query().Get("image"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--api-key=test-token",
+		"sbom", "upload", path,
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 0, exitCode)
+}
+
 func TestCLI_ValidCommandWithImageFromEnvironment(t *testing.T) {
 	t.Setenv("IMAGE", "registry.example.com/team/app:env")
 

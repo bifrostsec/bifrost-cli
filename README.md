@@ -93,6 +93,8 @@ The CLI uploads one or more SBOM files and associates them with a bifrost servic
 - a service version
 - an image reference
 
+You can provide the service version through `--service-version` or the `SERVICE_VERSION` environment variable.
+
 ```bash
 ./bifrost --service=my-service --service-version=1.2.3 sbom upload /path/to/sbom.json
 ```
@@ -126,6 +128,8 @@ You can also provide the image reference through the `IMAGE` or `BIFROST_IMAGE` 
 ```bash
 IMAGE=registry.example.com/team/app:1.2.3 ./bifrost --service=my-service sbom upload /path/to/sbom.json
 ```
+
+If `SERVICE_VERSION` is already set in the environment, the image-only examples above will send both `version` and `image`. Unset `SERVICE_VERSION` when you want an image-only upload.
 
 Providing both is also supported and recommended:
 
