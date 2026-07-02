@@ -37,6 +37,8 @@ func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, er
 	if len(args) == 0 {
 		return nil, fmt.Errorf("at least one SBOM file path is required")
 	}
+	populateDefaultGitMetadata(&opts)
+
 	return &sbomUploadTask{
 		Options:    opts,
 		paths:      args,
