@@ -78,10 +78,10 @@ To use the CLI, you first need a bifrost account and an API token.
     make build
     ```
 
-4. Upload an SBOM for a service and version:
+4. Upload an SBOM for a service, version, and image:
 
 ```bash
-BIFROST_API_KEY=my-key ./bifrost --service=name --service-version=34ha353 sbom upload /path/to/sbom.json
+BIFROST_API_KEY=my-key ./bifrost --service=name --service-version=34ha353 --image=registry.example.com/team/app:34ha353 sbom upload /path/to/sbom.json
 ```
 
 The API token is sent as a bearer token when the CLI uploads the SBOM.
@@ -91,31 +91,31 @@ The API token is sent as a bearer token when the CLI uploads the SBOM.
 The CLI uploads one or more SBOM files and associates them with a bifrost service and service version.
 
 ```bash
-./bifrost --service=my-service --service-version=1.2.3 sbom upload /path/to/sbom.json
+./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 sbom upload /path/to/sbom.json
 ```
 
 You can also read an SBOM from standard input by using `-` as the path:
 
 ```bash
-cat /path/to/sbom.json | ./bifrost --service=my-service --service-version=1.2.3 sbom upload -
+cat /path/to/sbom.json | ./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 sbom upload -
 ```
 
 You can control retry behavior for transient upload failures:
 
 ```bash
-./bifrost --service=my-service --service-version=1.2.3 --retry-attempts=5 --retry-delay=5s sbom upload /path/to/sbom.json
+./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 --retry-attempts=5 --retry-delay=5s sbom upload /path/to/sbom.json
 ```
 
 You can attach Git metadata to the upload request:
 
 ```bash
-./bifrost --service=my-service --service-version=1.2.3 --git-branch=main --git-commit-sha=abc123 --git-origin=https://github.com/example/project.git sbom upload /path/to/sbom.json
+./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 --git-branch=main --git-commit-sha=abc123 --git-origin=https://github.com/example/project.git sbom upload /path/to/sbom.json
 ```
 
 Example with Trivy generating a CycloneDX SBOM for a container image and piping it directly to bifrost:
 
 ```bash
-trivy image --format cyclonedx <image> | ./bifrost --service=my-service --service-version=1.2.3 sbom upload -
+trivy image --format cyclonedx <image> | ./bifrost --service=my-service --service-version=1.2.3 --image=<image> sbom upload -
 ```
 
 Example with GitHub CLI exporting the repository dependency graph SBOM and piping the SPDX document to bifrost:
@@ -125,13 +125,24 @@ gh api \
   -H "Accept: application/vnd.github+json" \
   -H "X-GitHub-Api-Version: 2026-03-10" \
   /repos/OWNER/REPO/dependency-graph/sbom \
-  --jq '.sbom' | ./bifrost --service=my-service --service-version=1.2.3 sbom upload -
+  --jq '.sbom' | ./bifrost --service=my-service --service-version=1.2.3 --image=ghcr.io/OWNER/REPO:1.2.3 sbom upload -
 ```
 
-You can provide the API token through:
+## Options
 
-- The `BIFROST_API_KEY` environment variable
-- The `--api-key` flag
+| Option | Required | Environment variable(s) | Description |
+| --- | --- | --- | --- |
+| `--api-key` | Yes | `BIFROST_API_KEY` | Bifrost API key used for authentication. |
+| `--service` | Yes | `SERVICE` | Name of the service. |
+| `--service-version` | Conditional | `SERVICE_VERSION` | Service version for the uploaded SBOM. Required unless an image is provided. |
+| `--image` | Conditional | `IMAGE`, `BIFROST_IMAGE` | Container image reference for the uploaded SBOM. Required unless a service version is provided. |
+| `--server-url` | No | `SERVER_URL`, `BIFROST_SERVER_URL` | URL to the bifrost server. |
+| `--retry-attempts` | No |  | Number of retry attempts for transient upload failures. |
+| `--retry-delay` | No |  | Delay between upload retry attempts. |
+| `--git-branch` | No |  | Git branch name to attach to the upload. |
+| `--git-commit-sha` | No |  | Git commit SHA to attach to the upload. |
+| `--git-origin` | No |  | Git origin URL to attach to the upload. |
+| `--help` | No |  | Show help and exit. |
 
 ## Useful Links
 

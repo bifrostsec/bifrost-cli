@@ -20,13 +20,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func newTestAPIConfig(serverURL string) APIConfig {
+	return APIConfig{
+		ServerURL:     serverURL,
+		Token:         "test-token",
+		RetryAttempts: DefaultRetryAttempts,
+		RetryDelay:    DefaultRetryDelay,
+	}
+}
+
 func TestAPI_UploadSBOM(t *testing.T) {
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		assert.Equal(t, "/api/v2/service/test-service/version/test-version/sbom", r.URL.Path)
+		assert.Equal(t, "/api/v2/service/test-service/version/sbom", r.URL.Path)
 		query := r.URL.Query()
+		assert.Equal(t, "test-version", query.Get("version"))
+		assert.Empty(t, query.Get("image"))
 		_, hasGitBranch := query["git_branch"]
 		_, hasGitCommitSHA := query["git_commit_sha"]
 		_, hasGitOrigin := query["git_origin"]
@@ -53,7 +64,7 @@ func TestAPI_UploadSBOM(t *testing.T) {
 
 	service := "test-service"
 	serviceVersion := "test-version"
-	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
+	api := NewAPI(newTestAPIConfig(httpServer.URL))
 
 	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
 	assert.NoError(t, err)
@@ -63,13 +74,15 @@ func TestAPI_UploadSBOM_EscapesServiceAndVersionPathSegments(t *testing.T) {
 	service := "team/test-service"
 	serviceVersion := "bkimminich/juice-shop@sha256:3f4a1c9e2b8d7f6a5e4d3c2b1a0f9e8d7c6b5a4938271605f4e3d2c1b0a9988"
 	expectedPath := fmt.Sprintf(
-		"/api/v2/service/%s/version/%s/sbom",
+		"/api/v2/service/%s/version/sbom",
 		url.PathEscape(service),
-		url.PathEscape(serviceVersion),
 	)
+	expectedQuery := url.Values{}
+	expectedQuery.Set("version", serviceVersion)
 
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, expectedPath, r.URL.EscapedPath())
+		assert.Equal(t, expectedQuery.Encode(), r.URL.RawQuery)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpServer.Close()
@@ -81,23 +94,26 @@ func TestAPI_UploadSBOM_EscapesServiceAndVersionPathSegments(t *testing.T) {
 		_ = os.Remove(path)
 	}()
 
-	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
+	api := NewAPI(newTestAPIConfig(httpServer.URL))
 
 	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
 	assert.NoError(t, err)
 }
 
-func TestAPI_UploadSBOM_IncludesGitMetadataQueryParams(t *testing.T) {
+func TestAPI_UploadSBOM_IncludesVersionAndGitMetadataQueryParams(t *testing.T) {
+	serviceVersion := "test-version"
 	gitBranch := "feature/deployments & scans"
 	gitCommitSHA := "abc123+digest"
 	gitOrigin := "https://github.com/example/project.git?ref=main&token=a+b"
 	expectedQuery := url.Values{}
+	expectedQuery.Set("version", serviceVersion)
 	expectedQuery.Set("git_branch", gitBranch)
 	expectedQuery.Set("git_commit_sha", gitCommitSHA)
 	expectedQuery.Set("git_origin", gitOrigin)
 
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, expectedQuery.Encode(), r.URL.RawQuery)
+		assert.Equal(t, serviceVersion, r.URL.Query().Get("version"))
 		assert.Equal(t, gitBranch, r.URL.Query().Get("git_branch"))
 		assert.Equal(t, gitCommitSHA, r.URL.Query().Get("git_commit_sha"))
 		assert.Equal(t, gitOrigin, r.URL.Query().Get("git_origin"))
@@ -112,18 +128,63 @@ func TestAPI_UploadSBOM_IncludesGitMetadataQueryParams(t *testing.T) {
 		_ = os.Remove(path)
 	}()
 
-	api := NewAPI(
-		httpServer.URL,
-		"test-token",
-		DefaultRetryAttempts,
-		DefaultRetryDelay,
-		gitBranch,
-		gitCommitSHA,
-		gitOrigin,
-	)
+	cfg := newTestAPIConfig(httpServer.URL)
+	cfg.GitBranch = gitBranch
+	cfg.GitCommitSHA = gitCommitSHA
+	cfg.GitOrigin = gitOrigin
 
-	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
+	api := NewAPI(cfg)
+
+	err = api.UploadSBOMFile(context.Background(), "test-service", serviceVersion, path)
 	assert.NoError(t, err)
+}
+
+func TestAPI_UploadSBOM_IncludesImageQueryParam(t *testing.T) {
+	image := "registry.example.com/team/app@sha256:abc123"
+	expectedQuery := url.Values{}
+	expectedQuery.Set("image", image)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, expectedQuery.Encode(), r.URL.RawQuery)
+		assert.Empty(t, r.URL.Query().Get("version"))
+		assert.Equal(t, image, r.URL.Query().Get("image"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	cfg := newTestAPIConfig(httpServer.URL)
+	cfg.Image = image
+
+	api := NewAPI(cfg)
+
+	err = api.UploadSBOMFile(context.Background(), "test-service", "", path)
+	assert.NoError(t, err)
+}
+
+func TestAPI_UploadSBOM_RequiresVersionOrImage(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("request should not be sent when both version and image are missing")
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	api := NewAPI(newTestAPIConfig(httpServer.URL))
+
+	err = api.UploadSBOMFile(context.Background(), "test-service", "", path)
+	assert.EqualError(t, err, "either service version or image is required")
 }
 
 func TestAPI_UploadSBOM_Error(t *testing.T) {
@@ -141,7 +202,7 @@ func TestAPI_UploadSBOM_Error(t *testing.T) {
 
 	service := "test-service"
 	serviceVersion := "test-version"
-	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
+	api := NewAPI(newTestAPIConfig(httpServer.URL))
 
 	err = api.UploadSBOMFile(context.Background(), service, serviceVersion, path)
 	assert.Error(t, err)
@@ -153,7 +214,7 @@ func TestAPI_UploadSBOM_FileNotFound(t *testing.T) {
 	}))
 	defer httpServer.Close()
 
-	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
+	api := NewAPI(newTestAPIConfig(httpServer.URL))
 
 	err := api.UploadSBOMFile(context.Background(), "test-service", "test-version", "nonexistent-file.json")
 	assert.Error(t, err)
@@ -173,7 +234,7 @@ func TestAPI_UploadSBOM_NotRegularFile(t *testing.T) {
 		_ = os.Remove(dirPath)
 	}()
 
-	api := NewAPI(httpServer.URL, "test-token", DefaultRetryAttempts, DefaultRetryDelay, "", "", "")
+	api := NewAPI(newTestAPIConfig(httpServer.URL))
 
 	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", dirPath)
 	assert.Error(t, err)
@@ -197,11 +258,13 @@ func TestAPI_UploadSBOM_RetriesTransientFailure(t *testing.T) {
 		_ = os.Remove(path)
 	}()
 
-	client := NewAPI(httpServer.URL, "test-token", 2, time.Millisecond, "", "", "")
-	internalAPI, ok := client.(*api)
-	assert.True(t, ok)
 	var retryOutput bytes.Buffer
-	internalAPI.retryOutput = &retryOutput
+	cfg := newTestAPIConfig(httpServer.URL)
+	cfg.RetryAttempts = 2
+	cfg.RetryDelay = time.Millisecond
+	cfg.RetryOutput = &retryOutput
+
+	client := NewAPI(cfg)
 
 	err = client.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
 	assert.NoError(t, err)
@@ -225,7 +288,11 @@ func TestAPI_UploadSBOM_DoesNotRetryClientFailure(t *testing.T) {
 		_ = os.Remove(path)
 	}()
 
-	api := NewAPI(httpServer.URL, "test-token", 5, time.Millisecond, "", "", "")
+	cfg := newTestAPIConfig(httpServer.URL)
+	cfg.RetryAttempts = 5
+	cfg.RetryDelay = time.Millisecond
+
+	api := NewAPI(cfg)
 
 	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
 	assert.Error(t, err)
@@ -233,11 +300,16 @@ func TestAPI_UploadSBOM_DoesNotRetryClientFailure(t *testing.T) {
 }
 
 func TestAPI_NewAPI_NormalizesNegativeRetryConfiguration(t *testing.T) {
-	client := NewAPI("https://example.com", "test-token", -1, -1*time.Second, "", "", "")
+	client := NewAPI(APIConfig{
+		ServerURL:     "https://example.com",
+		Token:         "test-token",
+		RetryAttempts: -1,
+		RetryDelay:    -1 * time.Second,
+	})
 	internalAPI, ok := client.(*api)
 	assert.True(t, ok)
-	assert.Equal(t, 0, internalAPI.retryAttempts)
-	assert.Equal(t, time.Duration(0), internalAPI.retryDelay)
+	assert.Equal(t, 0, internalAPI.cfg.RetryAttempts)
+	assert.Equal(t, time.Duration(0), internalAPI.cfg.RetryDelay)
 }
 
 func TestShouldRetry_ContextCancellationIsNotRetryable(t *testing.T) {

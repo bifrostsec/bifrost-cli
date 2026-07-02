@@ -24,39 +24,44 @@ type API interface {
 	UploadSBOMFile(ctx context.Context, service string, serviceVersion string, filePath string) error
 }
 
-type api struct {
-	client        http.Client
-	serverUrl     string
-	token         string
-	retryAttempts int
-	retryDelay    time.Duration
-	retryOutput   io.Writer
-	gitBranch     string
-	gitCommitSHA  string
-	gitOrigin     string
+type APIConfig struct {
+	ServerURL     string
+	Token         string
+	RetryAttempts int
+	RetryDelay    time.Duration
+	RetryOutput   io.Writer
+	GitBranch     string
+	GitCommitSHA  string
+	GitOrigin     string
+	Image         string
 }
 
-func NewAPI(serverURL string, token string, retryAttempts int, retryDelay time.Duration, gitBranch string, gitCommitSHA string, gitOrigin string) API {
-	if retryAttempts < 0 {
-		retryAttempts = 0
+type api struct {
+	client http.Client
+	cfg    APIConfig
+}
+
+func NewAPI(cfg APIConfig) API {
+	if cfg.RetryAttempts < 0 {
+		cfg.RetryAttempts = 0
 	}
-	if retryDelay < 0 {
-		retryDelay = 0
+	if cfg.RetryDelay < 0 {
+		cfg.RetryDelay = 0
+	}
+	if cfg.RetryOutput == nil {
+		cfg.RetryOutput = os.Stderr
 	}
 	return &api{
-		client:        http.Client{},
-		serverUrl:     serverURL,
-		token:         token,
-		retryAttempts: retryAttempts,
-		retryDelay:    retryDelay,
-		retryOutput:   os.Stderr,
-		gitBranch:     gitBranch,
-		gitCommitSHA:  gitCommitSHA,
-		gitOrigin:     gitOrigin,
+		client: http.Client{},
+		cfg:    cfg,
 	}
 }
 
 func (a *api) UploadSBOMFile(ctx context.Context, service string, serviceVersion string, filePath string) error {
+	if serviceVersion == "" && a.cfg.Image == "" {
+		return fmt.Errorf("either service version or image is required")
+	}
+
 	fi, err := os.Stat(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -79,16 +84,16 @@ func (a *api) UploadSBOMFile(ctx context.Context, service string, serviceVersion
 
 func (a *api) uploadSBOM(ctx context.Context, service string, serviceVersion string, sourceLabel string, openBody func() (io.ReadCloser, error)) error {
 	var err error
-	for attempt := 0; attempt <= a.retryAttempts; attempt++ {
+	for attempt := 0; attempt <= a.cfg.RetryAttempts; attempt++ {
 		err = a.uploadSBOMOnce(ctx, service, serviceVersion, sourceLabel, openBody)
 		if err == nil {
 			return nil
 		}
-		if attempt == a.retryAttempts || !shouldRetry(err) {
+		if attempt == a.cfg.RetryAttempts || !shouldRetry(err) {
 			return err
 		}
 		a.printRetryMessage(sourceLabel, err, attempt+1)
-		if err := sleepWithContext(ctx, a.retryDelay); err != nil {
+		if err := sleepWithContext(ctx, a.cfg.RetryDelay); err != nil {
 			return err
 		}
 	}
@@ -97,17 +102,17 @@ func (a *api) uploadSBOM(ctx context.Context, service string, serviceVersion str
 }
 
 func (a *api) printRetryMessage(sourceLabel string, err error, retryNumber int) {
-	if a.retryOutput == nil {
+	if a.cfg.RetryOutput == nil {
 		return
 	}
 	_, _ = fmt.Fprintf(
-		a.retryOutput,
+		a.cfg.RetryOutput,
 		"Upload failed for %s: %v. Retrying in %s (%d/%d)\n",
 		sourceLabel,
 		err,
-		a.retryDelay,
+		a.cfg.RetryDelay,
 		retryNumber,
-		a.retryAttempts,
+		a.cfg.RetryAttempts,
 	)
 }
 
@@ -124,10 +129,9 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 		ctx,
 		http.MethodPost,
 		fmt.Sprintf(
-			"%s/api/v2/service/%s/version/%s/sbom",
-			a.serverUrl,
+			"%s/api/v2/service/%s/version/sbom",
+			a.cfg.ServerURL,
 			url.PathEscape(service),
-			url.PathEscape(serviceVersion),
 		),
 		file,
 	)
@@ -136,18 +140,24 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 	}
 
 	query := req.URL.Query()
-	if a.gitBranch != "" {
-		query.Set("git_branch", a.gitBranch)
+	if serviceVersion != "" {
+		query.Set("version", serviceVersion)
 	}
-	if a.gitCommitSHA != "" {
-		query.Set("git_commit_sha", a.gitCommitSHA)
+	if a.cfg.Image != "" {
+		query.Set("image", a.cfg.Image)
 	}
-	if a.gitOrigin != "" {
-		query.Set("git_origin", a.gitOrigin)
+	if a.cfg.GitBranch != "" {
+		query.Set("git_branch", a.cfg.GitBranch)
+	}
+	if a.cfg.GitCommitSHA != "" {
+		query.Set("git_commit_sha", a.cfg.GitCommitSHA)
+	}
+	if a.cfg.GitOrigin != "" {
+		query.Set("git_origin", a.cfg.GitOrigin)
 	}
 	req.URL.RawQuery = query.Encode()
 
-	req.Header.Add("Authorization", "Bearer "+a.token)
+	req.Header.Add("Authorization", "Bearer "+a.cfg.Token)
 	req.Header.Add("Content-Type", "application/json")
 
 	resp, err := a.client.Do(req)
