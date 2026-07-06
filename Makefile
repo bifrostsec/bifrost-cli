@@ -1,4 +1,4 @@
-VERSION ?= $(shell git describe --tags --dirty --always)
+VERSION ?= $(shell git describe --tags --dirty --always | sed 's/^v//')
 GIT_COMMIT ?= $(shell git rev-parse HEAD)
 EXEC_NAME = bifrost
 BUILD_DIR = build
