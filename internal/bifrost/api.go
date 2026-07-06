@@ -18,6 +18,7 @@ const (
 	DefaultServerURL     = "https://portal.bifrostsec.com"
 	DefaultRetryAttempts = 3
 	DefaultRetryDelay    = 2 * time.Second
+	userAgentProduct     = "bifrost-cli"
 )
 
 type API interface {
@@ -34,6 +35,7 @@ type APIConfig struct {
 	GitCommitSHA  string
 	GitOrigin     string
 	Image         string
+	CliVersion	  string
 }
 
 type api struct {
@@ -159,6 +161,7 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 
 	req.Header.Add("Authorization", "Bearer "+a.cfg.Token)
 	req.Header.Add("Content-Type", "application/json")
+	req.Header.Set("User-Agent", userAgent(a.cfg.CliVersion))
 
 	resp, err := a.client.Do(req)
 	if err != nil {
@@ -178,6 +181,13 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 	}
 
 	return nil
+}
+
+func userAgent(version string) string {
+	if version == "" {
+		return userAgentProduct
+	}
+	return fmt.Sprintf("%s/%s", userAgentProduct, version)
 }
 
 type uploadError struct {

@@ -26,6 +26,7 @@ func newTestAPIConfig(serverURL string) APIConfig {
 		Token:         "test-token",
 		RetryAttempts: DefaultRetryAttempts,
 		RetryDelay:    DefaultRetryDelay,
+		CliVersion:    "1.2.3",
 	}
 }
 
@@ -34,6 +35,7 @@ func TestAPI_UploadSBOM(t *testing.T) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		assert.Equal(t, "bifrost-cli/1.2.3", r.Header.Get("User-Agent"))
 		assert.Equal(t, "/api/v2/service/test-service/version/sbom", r.URL.Path)
 		query := r.URL.Query()
 		assert.Equal(t, "test-version", query.Get("version"))

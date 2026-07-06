@@ -17,7 +17,7 @@ on:
     outputs:
       artifact-id:
         description: 'ID of uploaded artifact'
-        value: ${{ jobs.upload-artifact.outputs.artifact-id }}
+        value: ${{ jobs.build.outputs.artifact-id }}
 
 jobs:
   build:
@@ -25,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      artifact-id: ${{ steps.upload-artifact.outputs.artifact-id }}
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -47,15 +49,21 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then
-            VERSION=$(git describe --tags --always | sed 's/^v//')
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION=$(VERSION="$INPUT_VERSION" make print-version)
+          else
+            VERSION=$(make print-version)
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build binaries
-        run: make GIT_COMMIT=${{ github.sha }} VERSION=${{ steps.version.outputs.version }} build-all
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GIT_COMMIT: ${{ github.sha }}
+        run: make build-all
 
       - name: Upload SBOM to bifrost
         if: ${{ github.repository_owner == 'bifrostsec' }}
