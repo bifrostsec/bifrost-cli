@@ -15,6 +15,9 @@ type gitMetadata struct {
 }
 
 func populateDefaultGitMetadata(opts *Options) {
+	if !opts.enableAutoGitMetadata {
+		return
+	}
 	if opts.gitBranch != "" && opts.gitCommitSHA != "" && opts.gitOrigin != "" {
 		return
 	}

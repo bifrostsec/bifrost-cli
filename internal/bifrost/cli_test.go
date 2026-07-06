@@ -80,9 +80,70 @@ func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
 	assert.Equal(t, 0, exitCode)
 }
 
-func TestCLI_ValidCommandWithAutoGitMetadata(t *testing.T) {
+func TestCLI_ValidCommandWithAutoGitMetadataEnabledByFlag(t *testing.T) {
 	branch := "feature/auto-git-metadata"
 	origin := "https://github.com/example/auto-project.git"
+	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
+	chdir(t, repoDir)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, branch, r.URL.Query().Get("git_branch"))
+		assert.Equal(t, commitSHA, r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, origin, r.URL.Query().Get("git_origin"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--enable-auto-git-metadata",
+		"sbom", "upload", path,
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 0, exitCode)
+}
+
+func TestCLI_ValidCommandInGitRepoWithoutAutoGitMetadataOmitsGitMetadata(t *testing.T) {
+	t.Setenv("BIFROST_ENABLE_AUTO_GIT_METADATA", "false")
+	branch := "feature/default-no-auto-git-metadata"
+	origin := "https://github.com/example/default-no-auto-project.git"
+	repoDir, _ := createTestGitRepo(t, branch, origin)
+	chdir(t, repoDir)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertNoGitMetadataQuery(t, r)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"sbom", "upload", path,
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 0, exitCode)
+}
+
+func TestCLI_ValidCommandWithAutoGitMetadataEnabledByEnvironment(t *testing.T) {
+	t.Setenv("BIFROST_ENABLE_AUTO_GIT_METADATA", "true")
+	branch := "feature/env-enabled-auto-git-metadata"
+	origin := "https://github.com/example/env-enabled-project.git"
 	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
 	chdir(t, repoDir)
 
@@ -115,13 +176,7 @@ func TestCLI_ValidCommandOutsideGitRepoOmitsGitMetadata(t *testing.T) {
 	chdir(t, tempDir)
 
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		query := r.URL.Query()
-		_, hasGitBranch := query["git_branch"]
-		_, hasGitCommitSHA := query["git_commit_sha"]
-		_, hasGitOrigin := query["git_origin"]
-		assert.False(t, hasGitBranch)
-		assert.False(t, hasGitCommitSHA)
-		assert.False(t, hasGitOrigin)
+		assertNoGitMetadataQuery(t, r)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpServer.Close()
@@ -363,6 +418,18 @@ func chdir(t *testing.T, dir string) {
 			t.Fatalf("failed to restore directory to %s: %v", previousDir, err)
 		}
 	})
+}
+
+func assertNoGitMetadataQuery(t *testing.T, r *http.Request) {
+	t.Helper()
+
+	query := r.URL.Query()
+	_, hasGitBranch := query["git_branch"]
+	_, hasGitCommitSHA := query["git_commit_sha"]
+	_, hasGitOrigin := query["git_origin"]
+	assert.False(t, hasGitBranch)
+	assert.False(t, hasGitCommitSHA)
+	assert.False(t, hasGitOrigin)
 }
 
 func TestCLI_InvalidCommand(t *testing.T) {

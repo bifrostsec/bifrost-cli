@@ -106,11 +106,22 @@ You can control retry behavior for transient upload failures:
 ./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 --retry-attempts=5 --retry-delay=5s sbom upload /path/to/sbom.json
 ```
 
-You can attach Git metadata to the upload request:
+Git metadata is optional. You can attach it manually:
 
 ```bash
 ./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 --git-branch=main --git-commit-sha=abc123 --git-origin=https://github.com/example/project.git sbom upload /path/to/sbom.json
 ```
+
+You can also enable automatic Git metadata detection. When enabled, bifrost fills in missing Git metadata from the current Git repository when those values are available:
+
+```bash
+./bifrost --service=my-service --service-version=1.2.3 --enable-auto-git-metadata sbom upload /path/to/sbom.json
+```
+
+You can enable automatic Git metadata detection with:
+
+- The `BIFROST_ENABLE_AUTO_GIT_METADATA=true` environment variable
+- The `--enable-auto-git-metadata` flag
 
 Example with Trivy generating a CycloneDX SBOM for a container image and piping it directly to bifrost:
 
