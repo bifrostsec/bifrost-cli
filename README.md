@@ -2,13 +2,16 @@
 
 A command-line tool for uploading SBOM (Software Bill of Materials) files to bifrost.
 
-This repository contains the `bifrost-cli`, which lets you submit SBOMs for a specific service and version to your bifrost organization. It is intended for local automation and CI/CD workflows where you already produce SBOMs as part of your build pipeline.
+This repository contains the `bifrost-cli`, which lets you submit SBOMs for a specific service and version to your
+bifrost organization. It is intended for local automation and CI/CD workflows where you already produce SBOMs as part of
+your build pipeline.
 
 ## What is bifrost?
 
 bifrost helps teams understand and reduce real workload risk with runtime security for containerized applications.
 
 Learn more:
+
 - Website: [bifrostsec.com](https://bifrostsec.com/)
 - Documentation: [docs.bifrostsec.com](https://docs.bifrostsec.com/)
 - Portal: [portal.bifrostsec.com](https://portal.bifrostsec.com/)
@@ -21,59 +24,62 @@ To use the CLI, you first need a bifrost account and an API token.
 2. Create an API token for your organization in the organization settings.
 3. Choose how you want to install the CLI.
 
-    ### Install with Homebrew (macOS and Linux):
+   ### Install with Homebrew (macOS and Linux):
 
     ```bash
     brew install bifrostsec/tap/bifrost-cli
     ```
 
-    This installs the `bifrost` command from the [bifrostsec/homebrew-tap](https://github.com/bifrostsec/homebrew-tap) tap. To update later:
+   This installs the `bifrost` command from the [bifrostsec/homebrew-tap](https://github.com/bifrostsec/homebrew-tap)
+   tap. To update later:
 
     ```bash
     brew update
     brew upgrade bifrost-cli
     ```
 
-    *(Windows is not covered by Homebrew — use one of the options below.)*
+   *(Windows is not covered by Homebrew — use one of the options below.)*
 
-    ### Download the released executable:
-    
+   ### Download the released executable:
+
     ```bash
     # Example for macOS on Apple Silicon
     curl -L -o bifrost https://github.com/bifrostsec/bifrost-cli/releases/latest/download/bifrost-darwin-arm64
     chmod +x ./bifrost
     ```
-    
-    *macOS note: the current macOS release binaries are not signed with an Apple Developer certificate. When you first run `./bifrost`, macOS may block it with a warning such as:*
-    
-    > **“bifrost” Not Opened**  
-    > Apple could not verify “bifrost” is free of malware that may harm your Mac or compromise your privacy
-    
-    To allow the binary to run on macOS:
-    
+
+   *macOS note: the current macOS release binaries are not signed with an Apple Developer certificate. When you first
+   run `./bifrost`, macOS may block it with a warning such as:*
+
+   > **“bifrost” Not Opened**  
+   > Apple could not verify “bifrost” is free of malware that may harm your Mac or compromise your privacy
+
+   To allow the binary to run on macOS:
+
     1. Try to run `./bifrost` once so macOS registers the blocked executable.
     2. Open `System Settings` > `Privacy & Security`.
     3. Scroll down to the `Security` section and click `Allow Anyway` for `bifrost`.
     4. Confirm with your login password if prompted.
     5. Run `./bifrost` again.
-    
-    *The `Allow Anyway` button is only shown for a limited time after the blocked launch attempt, so if you do not see it, run `./bifrost` again and return to `Privacy & Security`.*
-    
-    Release assets are published at:
-    
+
+   *The `Allow Anyway` button is only shown for a limited time after the blocked launch attempt, so if you do not see
+   it, run `./bifrost` again and return to `Privacy & Security`.*
+
+   Release assets are published at:
+
     - [github.com/bifrostsec/bifrost-cli/releases/latest](https://github.com/bifrostsec/bifrost-cli/releases/latest)
-    
-    Available executable names include:
-    
+
+   Available executable names include:
+
     - `bifrost-darwin-amd64`
     - `bifrost-darwin-arm64`
     - `bifrost-linux-amd64`
     - `bifrost-linux-arm64`
     - `bifrost-windows-386`
     - `bifrost-windows-amd64`
-    
-    ### Or build the CLI from source:
-    
+
+   ### Or build the CLI from source:
+
     ```bash
     make build
     ```
@@ -112,7 +118,8 @@ Git metadata is optional. You can attach it manually:
 ./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 --git-branch=main --git-commit-sha=abc123 --git-origin=https://github.com/example/project.git sbom upload /path/to/sbom.json
 ```
 
-You can also enable automatic Git metadata detection. When enabled, bifrost fills in missing Git metadata from the current Git repository when those values are available:
+You can also enable automatic Git metadata detection. When enabled, bifrost fills in missing Git metadata from the
+current Git repository when those values are available:
 
 ```bash
 ./bifrost --service=my-service --service-version=1.2.3 --enable-auto-git-metadata sbom upload /path/to/sbom.json
@@ -141,19 +148,20 @@ gh api \
 
 ## Options
 
-| Option | Required | Environment variable(s) | Description |
-| --- | --- | --- | --- |
-| `--api-key` | Yes | `BIFROST_API_KEY` | Bifrost API key used for authentication. |
-| `--service` | Yes | `SERVICE` | Name of the service. |
-| `--service-version` | Conditional | `SERVICE_VERSION` | Service version for the uploaded SBOM. Required unless an image is provided. |
-| `--image` | Conditional | `IMAGE` | Container image reference for the uploaded SBOM. Required unless a service version is provided. |
-| `--server-url` | No | `SERVER_URL`, `BIFROST_SERVER_URL` | URL to the bifrost server. |
-| `--retry-attempts` | No |  | Number of retry attempts for transient upload failures. |
-| `--retry-delay` | No |  | Delay between upload retry attempts. |
-| `--git-branch` | No |  | Git branch name to attach to the upload. |
-| `--git-commit-sha` | No |  | Git commit SHA to attach to the upload. |
-| `--git-origin` | No |  | Git origin URL to attach to the upload. |
-| `--help` | No |  | Show help and exit. |
+| Option                       | Required    | Environment variable(s)            | Description                                                                                     |
+|------------------------------|-------------|------------------------------------|-------------------------------------------------------------------------------------------------|
+| `--api-key`                  | Yes         | `BIFROST_API_KEY`                  | Bifrost API key used for authentication.                                                        |
+| `--service`                  | Yes         | `SERVICE`                          | Name of the service.                                                                            |
+| `--service-version`          | Conditional | `SERVICE_VERSION`                  | Service version for the uploaded SBOM. Required unless an image is provided.                    |
+| `--image`                    | Conditional | `IMAGE`                            | Container image reference for the uploaded SBOM. Required unless a service version is provided. |
+| `--server-url`               | No          | `SERVER_URL`, `BIFROST_SERVER_URL` | URL to the bifrost server.                                                                      |
+| `--retry-attempts`           | No          |                                    | Number of retry attempts for transient upload failures.                                         |
+| `--retry-delay`              | No          |                                    | Delay between upload retry attempts.                                                            |
+| `--git-branch`               | No          |                                    | Git branch name to attach to the upload.                                                        |
+| `--git-commit-sha`           | No          |                                    | Git commit SHA to attach to the upload.                                                         |
+| `--git-origin`               | No          |                                    | Git origin URL to attach to the upload.                                                         |
+| `--enable-auto-git-metadata` | No          | `BIFROST_ENABLE_AUTO_GIT_METADATA` | Automatically fill missing Git metadata from the current Git repository when available.         |
+| `--help`                     | No          |                                    | Show help and exit.                                                                             |
 
 ## Useful Links
 

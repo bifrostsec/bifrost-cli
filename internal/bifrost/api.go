@@ -35,7 +35,7 @@ type APIConfig struct {
 	GitCommitSHA  string
 	GitOrigin     string
 	Image         string
-	CliVersion	  string
+	CliVersion    string
 }
 
 type api struct {
