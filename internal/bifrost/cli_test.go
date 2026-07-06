@@ -17,6 +17,7 @@ import (
 
 func TestCLI_ValidCommand(t *testing.T) {
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "bifrost-cli/1.0", r.Header.Get("User-Agent"))
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpServer.Close()
