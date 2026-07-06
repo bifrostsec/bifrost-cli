@@ -29,7 +29,7 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.apiKey, "api-key", "", "Bifrost API key (or BIFROST_API_KEY environment variable)")
 	fl.StringVar(&opts.service, "service", "", "Name of the service")
 	fl.StringVar(&opts.serviceVersion, "service-version", "", "Service version for the uploaded SBOM (or SERVICE_VERSION environment variable); required unless an image is provided")
-	fl.StringVar(&opts.image, "image", "", "Container image reference for the uploaded SBOM (or IMAGE/BIFROST_IMAGE environment variables); required unless a service version is provided")
+	fl.StringVar(&opts.image, "image", "", "Container image reference for the uploaded SBOM (or IMAGE environment variable); required unless a service version is provided")
 	fl.IntVar(&opts.retryAttempts, "retry-attempts", DefaultRetryAttempts, "Number of retry attempts for transient upload failures")
 	fl.DurationVar(&opts.retryDelay, "retry-delay", DefaultRetryDelay, "Delay between upload retry attempts")
 	fl.StringVar(&opts.gitBranch, "git-branch", "", "Optional Git branch name for the uploaded SBOM")

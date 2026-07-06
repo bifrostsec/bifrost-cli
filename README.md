@@ -135,7 +135,7 @@ gh api \
 | `--api-key` | Yes | `BIFROST_API_KEY` | Bifrost API key used for authentication. |
 | `--service` | Yes | `SERVICE` | Name of the service. |
 | `--service-version` | Conditional | `SERVICE_VERSION` | Service version for the uploaded SBOM. Required unless an image is provided. |
-| `--image` | Conditional | `IMAGE`, `BIFROST_IMAGE` | Container image reference for the uploaded SBOM. Required unless a service version is provided. |
+| `--image` | Conditional | `IMAGE` | Container image reference for the uploaded SBOM. Required unless a service version is provided. |
 | `--server-url` | No | `SERVER_URL`, `BIFROST_SERVER_URL` | URL to the bifrost server. |
 | `--retry-attempts` | No |  | Number of retry attempts for transient upload failures. |
 | `--retry-delay` | No |  | Delay between upload retry attempts. |

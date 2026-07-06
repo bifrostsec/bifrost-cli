@@ -158,35 +158,6 @@ func TestCLI_ValidCommandWithImageFromEnvironment(t *testing.T) {
 	assert.Equal(t, 0, exitCode)
 }
 
-func TestCLI_ValidCommandWithBifrostImageEnvironment(t *testing.T) {
-	t.Setenv("IMAGE", "registry.example.com/team/app:generic")
-	t.Setenv("BIFROST_IMAGE", "registry.example.com/team/app:namespaced")
-
-	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Empty(t, r.URL.Query().Get("version"))
-		assert.Equal(t, "registry.example.com/team/app:namespaced", r.URL.Query().Get("image"))
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer httpServer.Close()
-
-	path := "test-sbom.json"
-	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
-	assert.NoError(t, err)
-	defer func() {
-		_ = os.Remove(path)
-	}()
-
-	args := []string{
-		fmt.Sprintf("--server-url=%s", httpServer.URL),
-		"--service=test-service",
-		"--api-key=test-token",
-		"sbom", "upload", path,
-	}
-
-	exitCode := CLI("1.0", "commit", args)
-	assert.Equal(t, 0, exitCode)
-}
-
 func TestCLI_MissingServiceVersionAndImage(t *testing.T) {
 	args := []string{
 		"--server-url=https://portal.bifrostsec.com",

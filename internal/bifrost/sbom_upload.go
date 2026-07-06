@@ -29,9 +29,6 @@ func NewSBOMUploadTask(opts Options, args []string) (Task, error) {
 		if image := os.Getenv("IMAGE"); image != "" {
 			opts.image = image
 		}
-		if image := os.Getenv("BIFROST_IMAGE"); image != "" {
-			opts.image = image
-		}
 	}
 	if opts.serviceVersion == "" && opts.image == "" {
 		return nil, fmt.Errorf("either service version or image is required")
