@@ -25,9 +25,14 @@ func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, er
 	}
 	if opts.serviceVersion == "" {
 		opts.serviceVersion = os.Getenv("SERVICE_VERSION")
-		if opts.serviceVersion == "" {
-			return nil, fmt.Errorf("service version is required")
+	}
+	if opts.image == "" {
+		if image := os.Getenv("IMAGE"); image != "" {
+			opts.image = image
 		}
+	}
+	if opts.serviceVersion == "" && opts.image == "" {
+		return nil, fmt.Errorf("either service version or image is required")
 	}
 	if len(args) == 0 {
 		return nil, fmt.Errorf("at least one SBOM file path is required")
@@ -43,16 +48,17 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 	if len(t.paths) == 0 {
 		return fmt.Errorf("no SBOM file paths provided")
 	}
-	api := NewAPI(
-		t.ServerURL,
-		t.apiKey,
-		t.retryAttempts,
-		t.retryDelay,
-		t.gitBranch,
-		t.gitCommitSHA,
-		t.gitOrigin,
-		t.cliVersion,
-	)
+	api := NewAPI(APIConfig{
+		ServerURL:     t.ServerURL,
+		Token:         t.apiKey,
+		RetryAttempts: t.retryAttempts,
+		RetryDelay:    t.retryDelay,
+		GitBranch:     t.gitBranch,
+		GitCommitSHA:  t.gitCommitSHA,
+		GitOrigin:     t.gitOrigin,
+		Image:         t.image,
+		CliVersion:    t.cliVersion,
+	})
 	stdinConsumed := false
 	for _, path := range t.paths {
 		if path == "-" {
