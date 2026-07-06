@@ -49,10 +49,13 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          VERSION="${{ inputs.version }}"
-          if [ -z "$VERSION" ]; then
-            VERSION=$(git describe --tags --dirty --always | sed 's/^v//')
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION=$(VERSION="$INPUT_VERSION" make print-version)
+          else
+            VERSION=$(make print-version)
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 

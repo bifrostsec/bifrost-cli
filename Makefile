@@ -14,6 +14,9 @@ help: ## Show this help message
 	@echo ""
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+print-version: ## Print the resolved build version
+	@printf '%s\n' "$(VERSION)"
+
 deps: ## Download Go dependencies
 	go mod download
 	go mod tidy
@@ -49,4 +52,4 @@ sbom: $(addprefix sbom-,$(TARGETS)) ## Generate SBOMs for all supported targets
 clean: ## Clean build artifacts
 	rm -rf $(BUILD_DIR)
 
-.PHONY: help build build-all check sbom clean
+.PHONY: help print-version build build-all check sbom clean
