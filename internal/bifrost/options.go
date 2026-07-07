@@ -23,6 +23,7 @@ type Options struct {
 	gitBranch             string
 	gitCommitSHA          string
 	gitOrigin             string
+	gitRepoPath           string
 	enableAutoGitMetadata bool
 }
 
@@ -37,6 +38,7 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.gitBranch, "git-branch", "", "Optional Git branch name for the uploaded SBOM")
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
+	fl.StringVar(&opts.gitRepoPath, "git-repo-path", ".", "Git repository path used for automatic Git metadata detection")
 	fl.BoolVar(&opts.enableAutoGitMetadata, "enable-auto-git-metadata", false, "Enable automatic Git metadata detection (or environment variable BIFROST_ENABLE_AUTO_GIT_METADATA=true)")
 }
 

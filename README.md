@@ -125,6 +125,12 @@ current Git repository when those values are available:
 ./bifrost --service=my-service --service-version=1.2.3 --enable-auto-git-metadata sbom upload /path/to/sbom.json
 ```
 
+To detect metadata from a specific path:
+
+```bash
+./bifrost --service=my-service --service-version=1.2.3 --enable-auto-git-metadata --git-repo-path=/path/to/repo sbom upload /path/to/sbom.json
+```
+
 You can enable automatic Git metadata detection with:
 
 - The `BIFROST_ENABLE_AUTO_GIT_METADATA=true` environment variable
@@ -148,20 +154,21 @@ gh api \
 
 ## Options
 
-| Option                       | Required    | Environment variable(s)            | Description                                                                                     |
-|------------------------------|-------------|------------------------------------|-------------------------------------------------------------------------------------------------|
-| `--api-key`                  | Yes         | `BIFROST_API_KEY`                  | Bifrost API key used for authentication.                                                        |
-| `--service`                  | Yes         | `SERVICE`                          | Name of the service.                                                                            |
-| `--service-version`          | Conditional | `SERVICE_VERSION`                  | Service version for the uploaded SBOM. Required unless an image is provided.                    |
-| `--image`                    | Conditional | `IMAGE`                            | Container image reference for the uploaded SBOM. Required unless a service version is provided. |
-| `--server-url`               | No          | `SERVER_URL`, `BIFROST_SERVER_URL` | URL to the bifrost server.                                                                      |
-| `--retry-attempts`           | No          |                                    | Number of retry attempts for transient upload failures.                                         |
-| `--retry-delay`              | No          |                                    | Delay between upload retry attempts.                                                            |
-| `--git-branch`               | No          |                                    | Git branch name to attach to the upload.                                                        |
-| `--git-commit-sha`           | No          |                                    | Git commit SHA to attach to the upload.                                                         |
-| `--git-origin`               | No          |                                    | Git origin URL to attach to the upload.                                                         |
-| `--enable-auto-git-metadata` | No          | `BIFROST_ENABLE_AUTO_GIT_METADATA` | Automatically fill missing Git metadata from the current Git repository when available.         |
-| `--help`                     | No          |                                    | Show help and exit.                                                                             |
+| Option                       | Required    | Environment variable(s)            | Description                                                                                       |
+|------------------------------|-------------|------------------------------------|---------------------------------------------------------------------------------------------------|
+| `--api-key`                  | Yes         | `BIFROST_API_KEY`                  | Bifrost API key used for authentication.                                                          |
+| `--service`                  | Yes         | `SERVICE`                          | Name of the service.                                                                              |
+| `--service-version`          | Conditional | `SERVICE_VERSION`                  | Service version for the uploaded SBOM. Required unless an image is provided.                      |
+| `--image`                    | Conditional | `IMAGE`                            | Container image reference for the uploaded SBOM. Required unless a service version is provided.   |
+| `--server-url`               | No          | `SERVER_URL`, `BIFROST_SERVER_URL` | URL to the bifrost server.                                                                        |
+| `--retry-attempts`           | No          |                                    | Number of retry attempts for transient upload failures.                                           |
+| `--retry-delay`              | No          |                                    | Delay between upload retry attempts.                                                              |
+| `--git-branch`               | No          |                                    | Git branch name to attach to the upload.                                                          |
+| `--git-commit-sha`           | No          |                                    | Git commit SHA to attach to the upload.                                                           |
+| `--git-origin`               | No          |                                    | Git origin URL to attach to the upload.                                                           |
+| `--git-repo-path`            | No          |                                    | Git repository path used for automatic Git metadata detection. Defaults to the current directory. |
+| `--enable-auto-git-metadata` | No          | `BIFROST_ENABLE_AUTO_GIT_METADATA` | Automatically fill missing Git metadata from the current Git repository when available.           |
+| `--help`                     | No          |                                    | Show help and exit.                                                                               |
 
 ## Useful Links
 

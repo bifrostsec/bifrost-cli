@@ -14,31 +14,10 @@ type gitMetadata struct {
 	origin    string
 }
 
-func fillMissingGitMetadataFromRepo(opts *Options) {
-	if opts.gitBranch != "" && opts.gitCommitSHA != "" && opts.gitOrigin != "" {
-		return
-	}
-
-	metadata, ok := discoverGitMetadata(".")
-	if !ok {
-		return
-	}
-
-	if opts.gitBranch == "" {
-		opts.gitBranch = metadata.branch
-	}
-	if opts.gitCommitSHA == "" {
-		opts.gitCommitSHA = metadata.commitSHA
-	}
-	if opts.gitOrigin == "" {
-		opts.gitOrigin = metadata.origin
-	}
-}
-
-func discoverGitMetadata(dir string) (gitMetadata, bool) {
+func discoverGitMetadata(dir string) gitMetadata {
 	insideWorkTree, ok := runGit(dir, "rev-parse", "--is-inside-work-tree")
 	if !ok || insideWorkTree != "true" {
-		return gitMetadata{}, false
+		return gitMetadata{}
 	}
 
 	branch, _ := runGit(dir, "rev-parse", "--abbrev-ref", "HEAD")
@@ -53,7 +32,7 @@ func discoverGitMetadata(dir string) (gitMetadata, bool) {
 		commitSHA: commitSHA,
 		origin:    origin,
 	}
-	return metadata, metadata.branch != "" || metadata.commitSHA != "" || metadata.origin != ""
+	return metadata
 }
 
 func runGit(dir string, args ...string) (string, bool) {
@@ -63,4 +42,11 @@ func runGit(dir string, args ...string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSpace(string(output)), true
+}
+
+func gitMetadataRepoPath(path string) string {
+	if path == "" {
+		return "."
+	}
+	return path
 }

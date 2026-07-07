@@ -16,7 +16,8 @@ type sbomUploadTask struct {
 	cliVersion string
 }
 
-const missingGitMetadataHint = "Hint: no Git metadata was provided. To automatically attach Git metadata, run from a Git repository with --enable-auto-git-metadata or set the BIFROST_ENABLE_AUTO_GIT_METADATA=true environment variable.\n"
+const missingGitMetadataHint = "Hint: no Git metadata was provided. To automatically attach Git metadata, run from a Git repository with --enable-auto-git-metadata or set the BIFROST_ENABLE_AUTO_GIT_METADATA=true environment variable. Use --git-repo-path when the repository is elsewhere.\n"
+const autoDetectedGitMetadataMessage = "Auto-detected Git metadata from %s:\n  git_branch=%q\n  git_commit_sha=%q\n  git_origin=%q\n"
 
 func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, error) {
 	if opts.service == "" {
@@ -40,7 +41,9 @@ func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, er
 		return nil, fmt.Errorf("at least one SBOM file path is required")
 	}
 	if opts.enableAutoGitMetadata {
-		fillMissingGitMetadataFromRepo(&opts)
+		autoDetectedGitMetadata := discoverGitMetadata(gitMetadataRepoPath(opts.gitRepoPath))
+		printAutoDetectedGitMetadata(opts.gitRepoPath, autoDetectedGitMetadata)
+		opts = withMissingGitMetadata(opts, autoDetectedGitMetadata)
 	}
 
 	return &sbomUploadTask{
@@ -86,6 +89,30 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 	}
 	t.printGitMetadataHint()
 	return nil
+}
+
+func printAutoDetectedGitMetadata(repoPath string, metadata gitMetadata) {
+	_, _ = fmt.Fprintf(
+		os.Stderr,
+		autoDetectedGitMetadataMessage,
+		gitMetadataRepoPath(repoPath),
+		metadata.branch,
+		metadata.commitSHA,
+		metadata.origin,
+	)
+}
+
+func withMissingGitMetadata(opts Options, metadata gitMetadata) Options {
+	if opts.gitBranch == "" {
+		opts.gitBranch = metadata.branch
+	}
+	if opts.gitCommitSHA == "" {
+		opts.gitCommitSHA = metadata.commitSHA
+	}
+	if opts.gitOrigin == "" {
+		opts.gitOrigin = metadata.origin
+	}
+	return opts
 }
 
 func (t sbomUploadTask) printGitMetadataHint() {
