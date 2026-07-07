@@ -5,8 +5,8 @@ package bifrost
 
 import (
 	"fmt"
-
-	git "github.com/go-git/go-git/v5"
+	"os/exec"
+	"strings"
 )
 
 type gitMetadata struct {
@@ -21,45 +21,67 @@ type gitMetadataDiscovery struct {
 }
 
 func discoverGitMetadata(dir string) gitMetadataDiscovery {
-	repo, err := git.PlainOpenWithOptions(dir, &git.PlainOpenOptions{
-		DetectDotGit:          true,
-		EnableDotGitCommonDir: true,
-	})
+	dir = repoPath(dir)
+
+	// Verify that we are inside a Git repository.
+	insideWorkingTree, err := runGitCommand(dir, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
 		return gitMetadataDiscovery{
-			errors: []error{fmt.Errorf("open git repository: %w", err)},
+			errors: []error{fmt.Errorf("check git work tree: %w", err)},
+		}
+	}
+	if insideWorkingTree != "true" {
+		return gitMetadataDiscovery{
+			errors: []error{fmt.Errorf("check git work tree: not inside a Git work tree")},
 		}
 	}
 
-	metadata := gitMetadata{}
 	var errors []error
-	head, err := repo.Head()
-	if err == nil {
-		if head.Name().IsBranch() {
-			metadata.branch = head.Name().Short()
+	read := func(label string, args ...string) string {
+		value, err := runGitCommand(dir, args...)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("%s: %w", label, err))
 		}
-		metadata.commitSHA = head.Hash().String()
-	} else {
-		errors = append(errors, fmt.Errorf("read HEAD: %w", err))
+		return value
 	}
 
-	cfg, err := repo.Config()
-	if err == nil {
-		if origin, ok := cfg.Remotes["origin"]; ok && len(origin.URLs) > 0 {
-			metadata.origin = origin.URLs[0]
-		}
-	} else {
-		errors = append(errors, fmt.Errorf("read git config: %w", err))
+	// Read branch and commit metadata.
+	branch := read("read git branch", "rev-parse", "--abbrev-ref", "HEAD")
+	if branch == "HEAD" {
+		branch = ""
 	}
+	commitSHA := read("read git commit SHA", "rev-parse", "HEAD")
+
+	// Get remote origin
+	origin, _ := runGitCommand(dir, "config", "--get", "remote.origin.url")
+
 	return gitMetadataDiscovery{
-		metadata: metadata,
-		errors:   errors,
+		metadata: gitMetadata{
+			branch:    branch,
+			commitSHA: commitSHA,
+			origin:    origin,
+		},
+		errors: errors,
 	}
 }
 
-func gitMetadataRepoPath(path string) string {
+func repoPath(path string) string {
 	if path == "" {
 		return "."
 	}
 	return path
+}
+
+func runGitCommand(dir string, args ...string) (string, error) {
+	gitArgs := append([]string{"-C", dir}, args...)
+	output, err := exec.Command("git", gitArgs...).CombinedOutput()
+	message := strings.TrimSpace(string(output))
+	if err != nil {
+		command := "git " + strings.Join(args, " ")
+		if message == "" {
+			return "", fmt.Errorf("%s: %w", command, err)
+		}
+		return "", fmt.Errorf("%s: %w: %s", command, err, message)
+	}
+	return message, nil
 }

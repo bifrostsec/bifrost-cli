@@ -157,6 +157,43 @@ func TestCLI_ValidCommandWithAutoGitMetadataFromGitRepoPath(t *testing.T) {
 	assert.NotContains(t, stderr, missingGitMetadataHint)
 }
 
+func TestCLI_ValidCommandWithAutoGitMetadataAndWorktreeConfigExtension(t *testing.T) {
+	branch := "feature/auto-git-metadata-worktree-config"
+	origin := "https://github.com/example/auto-project-worktree-config.git"
+	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
+	runTestGit(t, repoDir, "config", "extensions.worktreeConfig", "true")
+	chdir(t, repoDir)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, branch, r.URL.Query().Get("git_branch"))
+		assert.Equal(t, commitSHA, r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, origin, r.URL.Query().Get("git_origin"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--enable-auto-git-metadata",
+		"sbom", "upload", path,
+	}
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
+	assert.Equal(t, 0, exitCode)
+	assertAutoDetectedGitMetadata(t, stderr, ".", branch, commitSHA, origin)
+	assert.NotContains(t, stderr, "  error=")
+	assert.NotContains(t, stderr, missingGitMetadataHint)
+}
+
 func TestCLI_ValidCommandInGitRepoWithoutAutoGitMetadataOmitsGitMetadata(t *testing.T) {
 	branch := "feature/default-no-auto-git-metadata"
 	origin := "https://github.com/example/default-no-auto-project.git"
@@ -334,7 +371,7 @@ func TestCLI_ValidCommandWithAutoGitMetadataOutsideGitRepoPrintsError(t *testing
 	})
 	assert.Equal(t, 0, exitCode)
 	assertAutoDetectedGitMetadata(t, stderr, ".", "", "", "")
-	assert.Contains(t, stderr, "  error=\"open git repository:")
+	assert.Contains(t, stderr, "  error=\"check git work tree:")
 	assert.Contains(t, stderr, missingGitMetadataHint)
 }
 
