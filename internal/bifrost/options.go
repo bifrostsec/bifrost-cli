@@ -37,7 +37,7 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.gitBranch, "git-branch", "", "Optional Git branch name for the uploaded SBOM")
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
-	fl.BoolVar(&opts.enableAutoGitMetadata, "enable-auto-git-metadata", false, "Enable automatic Git metadata detection (or BIFROST_ENABLE_AUTO_GIT_METADATA=true)")
+	fl.BoolVar(&opts.enableAutoGitMetadata, "enable-auto-git-metadata", false, "Enable automatic Git metadata detection (or environment variable BIFROST_ENABLE_AUTO_GIT_METADATA=true)")
 }
 
 func ValidateBaseOptions(opts *Options) error {
@@ -64,23 +64,13 @@ func ValidateBaseOptions(opts *Options) error {
 	if opts.retryDelay < 0 {
 		return fmt.Errorf("retry delay must be zero or greater")
 	}
-	enableAutoGitMetadata, err := boolFromEnv("BIFROST_ENABLE_AUTO_GIT_METADATA")
-	if err != nil {
-		return err
+	if opts.enableAutoGitMetadata == false {
+		enableAutoGitMetadata, err := strconv.ParseBool(os.Getenv("BIFROST_ENABLE_AUTO_GIT_METADATA"))
+		if err != nil {
+			return err
+		}
+		opts.enableAutoGitMetadata = opts.enableAutoGitMetadata || enableAutoGitMetadata
 	}
-	opts.enableAutoGitMetadata = opts.enableAutoGitMetadata || enableAutoGitMetadata
 
 	return nil
-}
-
-func boolFromEnv(name string) (bool, error) {
-	value := os.Getenv(name)
-	if value == "" {
-		return false, nil
-	}
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		return false, fmt.Errorf("%s must be a boolean", name)
-	}
-	return parsed, nil
 }

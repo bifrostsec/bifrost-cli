@@ -16,6 +16,8 @@ type sbomUploadTask struct {
 	cliVersion string
 }
 
+const missingGitMetadataHint = "Hint: no Git metadata was provided. To automatically attach Git metadata, run from a Git repository with --enable-auto-git-metadata or set the BIFROST_ENABLE_AUTO_GIT_METADATA=true environment variable.\n"
+
 func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, error) {
 	if opts.service == "" {
 		opts.service = os.Getenv("SERVICE")
@@ -37,7 +39,9 @@ func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, er
 	if len(args) == 0 {
 		return nil, fmt.Errorf("at least one SBOM file path is required")
 	}
-	populateDefaultGitMetadata(&opts)
+	if opts.enableAutoGitMetadata {
+		fillMissingGitMetadataFromRepo(&opts)
+	}
 
 	return &sbomUploadTask{
 		Options:    opts,
@@ -80,7 +84,15 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 		}
 		fmt.Printf("Uploaded %s to %s\n", path, t.ServerURL)
 	}
+	t.printGitMetadataHint()
 	return nil
+}
+
+func (t sbomUploadTask) printGitMetadataHint() {
+	if t.gitBranch != "" || t.gitCommitSHA != "" || t.gitOrigin != "" {
+		return
+	}
+	_, _ = fmt.Fprint(os.Stderr, missingGitMetadataHint)
 }
 
 func (t sbomUploadTask) uploadStdinSBOM(ctx context.Context, api API) error {

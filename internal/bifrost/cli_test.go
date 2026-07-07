@@ -44,8 +44,11 @@ func TestCLI_ValidCommand(t *testing.T) {
 	}
 
 	// Run the CLI with the parsed arguments
-	exitCode := CLI("1.0", "commit", args)
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
 	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stderr, missingGitMetadataHint)
 }
 
 func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
@@ -76,8 +79,11 @@ func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
 		"sbom", "upload", path,
 	}
 
-	exitCode := CLI("1.0", "commit", args)
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
 	assert.Equal(t, 0, exitCode)
+	assert.NotContains(t, stderr, missingGitMetadataHint)
 }
 
 func TestCLI_ValidCommandWithAutoGitMetadataEnabledByFlag(t *testing.T) {
@@ -112,7 +118,6 @@ func TestCLI_ValidCommandWithAutoGitMetadataEnabledByFlag(t *testing.T) {
 }
 
 func TestCLI_ValidCommandInGitRepoWithoutAutoGitMetadataOmitsGitMetadata(t *testing.T) {
-	t.Setenv("BIFROST_ENABLE_AUTO_GIT_METADATA", "false")
 	branch := "feature/default-no-auto-git-metadata"
 	origin := "https://github.com/example/default-no-auto-project.git"
 	repoDir, _ := createTestGitRepo(t, branch, origin)
@@ -138,6 +143,70 @@ func TestCLI_ValidCommandInGitRepoWithoutAutoGitMetadataOmitsGitMetadata(t *test
 
 	exitCode := CLI("1.0", "commit", args)
 	assert.Equal(t, 0, exitCode)
+}
+
+func TestCLI_ValidCommandWithAutoGitMetadataExplicitlyDisabledByFlagPrintsHint(t *testing.T) {
+	branch := "feature/flag-disabled-auto-git-metadata"
+	origin := "https://github.com/example/flag-disabled-project.git"
+	repoDir, _ := createTestGitRepo(t, branch, origin)
+	chdir(t, repoDir)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertNoGitMetadataQuery(t, r)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--enable-auto-git-metadata=false",
+		"sbom", "upload", path,
+	}
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
+	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stderr, missingGitMetadataHint)
+}
+
+func TestCLI_ValidCommandWithAutoGitMetadataExplicitlyDisabledByEnvironmentPrintsHint(t *testing.T) {
+	t.Setenv("BIFROST_ENABLE_AUTO_GIT_METADATA", "false")
+	branch := "feature/env-disabled-auto-git-metadata"
+	origin := "https://github.com/example/env-disabled-project.git"
+	repoDir, _ := createTestGitRepo(t, branch, origin)
+	chdir(t, repoDir)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertNoGitMetadataQuery(t, r)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"sbom", "upload", path,
+	}
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
+	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stderr, missingGitMetadataHint)
 }
 
 func TestCLI_ValidCommandWithAutoGitMetadataEnabledByEnvironment(t *testing.T) {
@@ -430,6 +499,33 @@ func assertNoGitMetadataQuery(t *testing.T, r *http.Request) {
 	assert.False(t, hasGitBranch)
 	assert.False(t, hasGitCommitSHA)
 	assert.False(t, hasGitOrigin)
+}
+
+func captureStderr(t *testing.T, run func() int) (int, string) {
+	t.Helper()
+
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stderr pipe: %v", err)
+	}
+	defer func() {
+		_ = readPipe.Close()
+	}()
+
+	originalStderr := os.Stderr
+	os.Stderr = writePipe
+	exitCode := run()
+	os.Stderr = originalStderr
+
+	if err := writePipe.Close(); err != nil {
+		t.Fatalf("failed to close stderr pipe: %v", err)
+	}
+
+	output, err := io.ReadAll(readPipe)
+	if err != nil {
+		t.Fatalf("failed to read stderr pipe: %v", err)
+	}
+	return exitCode, string(output)
 }
 
 func TestCLI_InvalidCommand(t *testing.T) {

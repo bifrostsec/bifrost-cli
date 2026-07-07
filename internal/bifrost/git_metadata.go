@@ -14,10 +14,7 @@ type gitMetadata struct {
 	origin    string
 }
 
-func populateDefaultGitMetadata(opts *Options) {
-	if !opts.enableAutoGitMetadata {
-		return
-	}
+func fillMissingGitMetadataFromRepo(opts *Options) {
 	if opts.gitBranch != "" && opts.gitCommitSHA != "" && opts.gitOrigin != "" {
 		return
 	}
