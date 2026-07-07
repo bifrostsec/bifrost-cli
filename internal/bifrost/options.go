@@ -64,12 +64,14 @@ func ValidateBaseOptions(opts *Options) error {
 	if opts.retryDelay < 0 {
 		return fmt.Errorf("retry delay must be zero or greater")
 	}
-	if opts.enableAutoGitMetadata == false {
-		enableAutoGitMetadata, err := strconv.ParseBool(os.Getenv("BIFROST_ENABLE_AUTO_GIT_METADATA"))
-		if err != nil {
-			return err
+	if !opts.enableAutoGitMetadata {
+		if value := os.Getenv("BIFROST_ENABLE_AUTO_GIT_METADATA"); value != "" {
+			enableAutoGitMetadata, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("BIFROST_ENABLE_AUTO_GIT_METADATA must be a boolean")
+			}
+			opts.enableAutoGitMetadata = enableAutoGitMetadata
 		}
-		opts.enableAutoGitMetadata = opts.enableAutoGitMetadata || enableAutoGitMetadata
 	}
 
 	return nil
