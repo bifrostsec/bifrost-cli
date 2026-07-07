@@ -122,19 +122,19 @@ You can also enable automatic Git metadata detection. When enabled, bifrost fill
 current Git repository when those values are available:
 
 ```bash
-./bifrost --service=my-service --service-version=1.2.3 --enable-auto-git-metadata sbom upload /path/to/sbom.json
+./bifrost --service=my-service --service-version=1.2.3 --git-auto-detect sbom upload /path/to/sbom.json
 ```
 
 To detect metadata from a specific path:
 
 ```bash
-./bifrost --service=my-service --service-version=1.2.3 --enable-auto-git-metadata --git-repo-path=/path/to/repo sbom upload /path/to/sbom.json
+./bifrost --service=my-service --service-version=1.2.3 --git-auto-detect --git-repo-path=/path/to/repo sbom upload /path/to/sbom.json
 ```
 
 You can enable automatic Git metadata detection with:
 
-- The `BIFROST_ENABLE_AUTO_GIT_METADATA=true` environment variable
-- The `--enable-auto-git-metadata` flag
+- The `BIFROST_GIT_AUTO_DETECT=true` environment variable
+- The `--git-auto-detect` flag
 
 Example with Trivy generating a CycloneDX SBOM for a container image and piping it directly to bifrost:
 
@@ -167,7 +167,7 @@ gh api \
 | `--git-commit-sha`           | No          |                                    | Git commit SHA to attach to the upload.                                                           |
 | `--git-origin`               | No          |                                    | Git origin URL to attach to the upload.                                                           |
 | `--git-repo-path`            | No          |                                    | Git repository path used for automatic Git metadata detection. Defaults to the current directory. |
-| `--enable-auto-git-metadata` | No          | `BIFROST_ENABLE_AUTO_GIT_METADATA` | Automatically fill missing Git metadata from the current Git repository when available.           |
+| `--git-auto-detect`          | No          | `BIFROST_GIT_AUTO_DETECT`          | Automatically fill missing Git metadata from the current Git repository when available.           |
 | `--help`                     | No          |                                    | Show help and exit.                                                                               |
 
 ## Useful Links

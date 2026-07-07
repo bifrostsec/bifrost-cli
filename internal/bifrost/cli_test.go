@@ -86,7 +86,7 @@ func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
 	assert.NotContains(t, stderr, missingGitMetadataHint)
 }
 
-func TestCLI_ValidCommandWithAutoGitMetadataEnabledByFlag(t *testing.T) {
+func TestCLI_ValidCommandWithGitAutoDetectEnabledByFlag(t *testing.T) {
 	branch := "feature/auto-git-metadata"
 	origin := "https://github.com/example/auto-project.git"
 	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
@@ -109,7 +109,7 @@ func TestCLI_ValidCommandWithAutoGitMetadataEnabledByFlag(t *testing.T) {
 		"--service=test-service",
 		"--service-version=1.0",
 		"--api-key=test-token",
-		"--enable-auto-git-metadata",
+		"--git-auto-detect",
 		"sbom", "upload", path,
 	}
 
@@ -121,7 +121,7 @@ func TestCLI_ValidCommandWithAutoGitMetadataEnabledByFlag(t *testing.T) {
 	assert.NotContains(t, stderr, missingGitMetadataHint)
 }
 
-func TestCLI_ValidCommandWithAutoGitMetadataFromGitRepoPath(t *testing.T) {
+func TestCLI_ValidCommandWithGitAutoDetectFromGitRepoPath(t *testing.T) {
 	branch := "feature/auto-git-metadata-path"
 	origin := "https://github.com/example/auto-project-path.git"
 	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
@@ -144,7 +144,7 @@ func TestCLI_ValidCommandWithAutoGitMetadataFromGitRepoPath(t *testing.T) {
 		"--service=test-service",
 		"--service-version=1.0",
 		"--api-key=test-token",
-		"--enable-auto-git-metadata",
+		"--git-auto-detect",
 		fmt.Sprintf("--git-repo-path=%s", repoDir),
 		"sbom", "upload", path,
 	}
@@ -157,7 +157,7 @@ func TestCLI_ValidCommandWithAutoGitMetadataFromGitRepoPath(t *testing.T) {
 	assert.NotContains(t, stderr, missingGitMetadataHint)
 }
 
-func TestCLI_ValidCommandInGitRepoWithoutAutoGitMetadataOmitsGitMetadata(t *testing.T) {
+func TestCLI_ValidCommandInGitRepoWithoutGitAutoDetectOmitsGitMetadata(t *testing.T) {
 	branch := "feature/default-no-auto-git-metadata"
 	origin := "https://github.com/example/default-no-auto-project.git"
 	repoDir, _ := createTestGitRepo(t, branch, origin)
@@ -185,8 +185,8 @@ func TestCLI_ValidCommandInGitRepoWithoutAutoGitMetadataOmitsGitMetadata(t *test
 	assert.Equal(t, 0, exitCode)
 }
 
-func TestCLI_ExplicitAutoGitMetadataFlagOverridesEnvironment(t *testing.T) {
-	t.Setenv("BIFROST_ENABLE_AUTO_GIT_METADATA", "true")
+func TestCLI_ExplicitGitAutoDetectFlagOverridesEnvironment(t *testing.T) {
+	t.Setenv("BIFROST_GIT_AUTO_DETECT", "true")
 	branch := "feature/flag-overrides-env"
 	origin := "https://github.com/example/flag-overrides-env-project.git"
 	repoDir, _ := createTestGitRepo(t, branch, origin)
@@ -207,7 +207,7 @@ func TestCLI_ExplicitAutoGitMetadataFlagOverridesEnvironment(t *testing.T) {
 		"--service=test-service",
 		"--service-version=1.0",
 		"--api-key=test-token",
-		"--enable-auto-git-metadata=false",
+		"--git-auto-detect=false",
 		"sbom", "upload", path,
 	}
 
@@ -218,8 +218,8 @@ func TestCLI_ExplicitAutoGitMetadataFlagOverridesEnvironment(t *testing.T) {
 	assert.Contains(t, stderr, missingGitMetadataHint)
 }
 
-func TestCLI_InvalidAutoGitMetadataEnvironmentValue(t *testing.T) {
-	t.Setenv("BIFROST_ENABLE_AUTO_GIT_METADATA", "notabool")
+func TestCLI_InvalidGitAutoDetectEnvironmentValue(t *testing.T) {
+	t.Setenv("BIFROST_GIT_AUTO_DETECT", "notabool")
 
 	args := []string{
 		"--server-url=https://portal.bifrostsec.com",
@@ -233,11 +233,11 @@ func TestCLI_InvalidAutoGitMetadataEnvironmentValue(t *testing.T) {
 		return CLI("1.0", "commit", args)
 	})
 	assert.Equal(t, 2, exitCode)
-	assert.Contains(t, stderr, "BIFROST_ENABLE_AUTO_GIT_METADATA must be a boolean")
+	assert.Contains(t, stderr, "BIFROST_GIT_AUTO_DETECT must be a boolean")
 }
 
-func TestCLI_ValidCommandWithAutoGitMetadataEnabledByEnvironment(t *testing.T) {
-	t.Setenv("BIFROST_ENABLE_AUTO_GIT_METADATA", "true")
+func TestCLI_ValidCommandWithGitAutoDetectEnabledByEnvironment(t *testing.T) {
+	t.Setenv("BIFROST_GIT_AUTO_DETECT", "true")
 	branch := "feature/env-enabled-auto-git-metadata"
 	origin := "https://github.com/example/env-enabled-project.git"
 	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
@@ -267,7 +267,7 @@ func TestCLI_ValidCommandWithAutoGitMetadataEnabledByEnvironment(t *testing.T) {
 	assert.Equal(t, 0, exitCode)
 }
 
-func TestCLI_ValidCommandWithAutoGitMetadataOutsideGitRepoPrintsError(t *testing.T) {
+func TestCLI_ValidCommandWithGitAutoDetectOutsideGitRepoPrintsError(t *testing.T) {
 	tempDir := t.TempDir()
 	chdir(t, tempDir)
 
@@ -286,7 +286,7 @@ func TestCLI_ValidCommandWithAutoGitMetadataOutsideGitRepoPrintsError(t *testing
 		"--service=test-service",
 		"--service-version=1.0",
 		"--api-key=test-token",
-		"--enable-auto-git-metadata",
+		"--git-auto-detect",
 		"sbom", "upload", path,
 	}
 

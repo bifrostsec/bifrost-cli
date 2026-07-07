@@ -12,21 +12,21 @@ import (
 	"time"
 )
 
-const enableAutoGitMetadataFlag = "enable-auto-git-metadata"
+const gitAutoDetectFlag = "git-auto-detect"
 
 type Options struct {
-	ServerURL             string
-	apiKey                string
-	service               string
-	serviceVersion        string
-	image                 string
-	retryAttempts         int
-	retryDelay            time.Duration
-	gitBranch             string
-	gitCommitSHA          string
-	gitOrigin             string
-	gitRepoPath           string
-	enableAutoGitMetadata bool
+	ServerURL      string
+	apiKey         string
+	service        string
+	serviceVersion string
+	image          string
+	retryAttempts  int
+	retryDelay     time.Duration
+	gitBranch      string
+	gitCommitSHA   string
+	gitOrigin      string
+	gitRepoPath    string
+	gitAutoDetect  bool
 }
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
@@ -41,7 +41,7 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
 	fl.StringVar(&opts.gitRepoPath, "git-repo-path", ".", "Git repository path used for automatic Git metadata detection")
-	fl.BoolVar(&opts.enableAutoGitMetadata, enableAutoGitMetadataFlag, false, "Enable automatic Git metadata detection (or environment variable BIFROST_ENABLE_AUTO_GIT_METADATA=true)")
+	fl.BoolVar(&opts.gitAutoDetect, gitAutoDetectFlag, false, "Automatically detect Git metadata (or environment variable BIFROST_GIT_AUTO_DETECT=true)")
 }
 
 func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
@@ -69,13 +69,13 @@ func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
 		return fmt.Errorf("retry delay must be zero or greater")
 	}
 	// An explicitly passed flag takes precedence over the environment variable.
-	if !flagWasSet(fl, enableAutoGitMetadataFlag) {
-		if value := os.Getenv("BIFROST_ENABLE_AUTO_GIT_METADATA"); value != "" {
-			enableAutoGitMetadata, err := strconv.ParseBool(value)
+	if !flagWasSet(fl, gitAutoDetectFlag) {
+		if value := os.Getenv("BIFROST_GIT_AUTO_DETECT"); value != "" {
+			gitAutoDetect, err := strconv.ParseBool(value)
 			if err != nil {
-				return fmt.Errorf("BIFROST_ENABLE_AUTO_GIT_METADATA must be a boolean")
+				return fmt.Errorf("BIFROST_GIT_AUTO_DETECT must be a boolean")
 			}
-			opts.enableAutoGitMetadata = enableAutoGitMetadata
+			opts.gitAutoDetect = gitAutoDetect
 		}
 	}
 
