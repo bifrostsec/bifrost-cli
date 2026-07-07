@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const enableAutoGitMetadataFlag = "enable-auto-git-metadata"
+
 type Options struct {
 	ServerURL             string
 	apiKey                string
@@ -39,10 +41,10 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
 	fl.StringVar(&opts.gitRepoPath, "git-repo-path", ".", "Git repository path used for automatic Git metadata detection")
-	fl.BoolVar(&opts.enableAutoGitMetadata, "enable-auto-git-metadata", false, "Enable automatic Git metadata detection (or environment variable BIFROST_ENABLE_AUTO_GIT_METADATA=true)")
+	fl.BoolVar(&opts.enableAutoGitMetadata, enableAutoGitMetadataFlag, false, "Enable automatic Git metadata detection (or environment variable BIFROST_ENABLE_AUTO_GIT_METADATA=true)")
 }
 
-func ValidateBaseOptions(opts *Options) error {
+func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
 	if u := os.Getenv("SERVER_URL"); u != "" {
 		opts.ServerURL = u
 	}
@@ -66,7 +68,8 @@ func ValidateBaseOptions(opts *Options) error {
 	if opts.retryDelay < 0 {
 		return fmt.Errorf("retry delay must be zero or greater")
 	}
-	if !opts.enableAutoGitMetadata {
+	// An explicitly passed flag takes precedence over the environment variable.
+	if !flagWasSet(fl, enableAutoGitMetadataFlag) {
 		if value := os.Getenv("BIFROST_ENABLE_AUTO_GIT_METADATA"); value != "" {
 			enableAutoGitMetadata, err := strconv.ParseBool(value)
 			if err != nil {
@@ -77,4 +80,14 @@ func ValidateBaseOptions(opts *Options) error {
 	}
 
 	return nil
+}
+
+func flagWasSet(fl *flag.FlagSet, name string) bool {
+	set := false
+	fl.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			set = true
+		}
+	})
+	return set
 }
