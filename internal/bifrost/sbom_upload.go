@@ -95,7 +95,7 @@ func printAutoDetectedGitMetadata(gitRepoPath string, discovery gitMetadataDisco
 	_, _ = fmt.Fprintf(
 		os.Stderr,
 		autoDetectedGitMetadataMessage,
-		repoPath(gitRepoPath),
+		gitRepoPath,
 		discovery.metadata.branch,
 		discovery.metadata.commitSHA,
 		discovery.metadata.origin,
