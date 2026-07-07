@@ -21,8 +21,6 @@ type gitMetadataDiscovery struct {
 }
 
 func discoverGitMetadata(dir string) gitMetadataDiscovery {
-	dir = repoPath(dir)
-
 	// Verify that we are inside a Git repository.
 	insideWorkingTree, err := runGitCommand(dir, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
@@ -63,13 +61,6 @@ func discoverGitMetadata(dir string) gitMetadataDiscovery {
 		},
 		errors: errors,
 	}
-}
-
-func repoPath(path string) string {
-	if path == "" {
-		return "."
-	}
-	return path
 }
 
 func runGitCommand(dir string, args ...string) (string, error) {
