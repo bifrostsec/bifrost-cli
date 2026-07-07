@@ -68,7 +68,7 @@ func runGitCommand(dir string, args ...string) (string, error) {
 	output, err := exec.Command("git", gitArgs...).CombinedOutput()
 	message := strings.TrimSpace(string(output))
 	if err != nil {
-		command := "git " + strings.Join(args, " ")
+		command := fmt.Sprintf("git -C %q %s", dir, strings.Join(args, " "))
 		if message == "" {
 			return "", fmt.Errorf("%s: %w", command, err)
 		}

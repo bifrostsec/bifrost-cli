@@ -17,7 +17,7 @@ type sbomUploadTask struct {
 }
 
 const missingGitMetadataHint = "Hint: no Git metadata was provided. To automatically attach Git metadata, run from a Git repository with --git-auto-detect or set the BIFROST_GIT_AUTO_DETECT=true environment variable. Use --git-repo-path when the repository is elsewhere.\n"
-const autoDetectedGitMetadataMessage = "Auto-detected Git metadata from %s:\n  git_branch=%q\n  git_commit_sha=%q\n  git_origin=%q\n"
+const gitMetadataDetectionMessage = "Git metadata detection from %s:\n  git_branch=%q\n  git_commit_sha=%q\n  git_origin=%q\n"
 
 func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, error) {
 	if opts.service == "" {
@@ -41,9 +41,9 @@ func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, er
 		return nil, fmt.Errorf("at least one SBOM file path is required")
 	}
 	if opts.gitAutoDetect {
-		autoDetectedGitMetadata := discoverGitMetadata(opts.gitRepoPath)
-		printAutoDetectedGitMetadata(opts.gitRepoPath, autoDetectedGitMetadata)
-		opts = withMissingGitMetadata(opts, autoDetectedGitMetadata.metadata)
+		gitMetadataDetection := discoverGitMetadata(opts.gitRepoPath)
+		printGitMetadataDetection(opts.gitRepoPath, gitMetadataDetection)
+		opts = withMissingGitMetadata(opts, gitMetadataDetection.metadata)
 	}
 
 	return &sbomUploadTask{
@@ -91,10 +91,10 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func printAutoDetectedGitMetadata(gitRepoPath string, discovery gitMetadataDiscovery) {
+func printGitMetadataDetection(gitRepoPath string, discovery gitMetadataDiscovery) {
 	_, _ = fmt.Fprintf(
 		os.Stderr,
-		autoDetectedGitMetadataMessage,
+		gitMetadataDetectionMessage,
 		gitRepoPath,
 		discovery.metadata.branch,
 		discovery.metadata.commitSHA,

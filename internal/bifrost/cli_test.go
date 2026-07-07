@@ -117,7 +117,7 @@ func TestCLI_ValidCommandWithGitAutoDetectEnabledByFlag(t *testing.T) {
 		return CLI("1.0", "commit", args)
 	})
 	assert.Equal(t, 0, exitCode)
-	assertAutoDetectedGitMetadata(t, stderr, ".", branch, commitSHA, origin)
+	assertGitMetadataDetection(t, stderr, ".", branch, commitSHA, origin)
 	assert.NotContains(t, stderr, missingGitMetadataHint)
 }
 
@@ -153,7 +153,7 @@ func TestCLI_ValidCommandWithGitAutoDetectFromGitRepoPath(t *testing.T) {
 		return CLI("1.0", "commit", args)
 	})
 	assert.Equal(t, 0, exitCode)
-	assertAutoDetectedGitMetadata(t, stderr, repoDir, branch, commitSHA, origin)
+	assertGitMetadataDetection(t, stderr, repoDir, branch, commitSHA, origin)
 	assert.NotContains(t, stderr, missingGitMetadataHint)
 }
 
@@ -294,8 +294,9 @@ func TestCLI_ValidCommandWithGitAutoDetectOutsideGitRepoPrintsError(t *testing.T
 		return CLI("1.0", "commit", args)
 	})
 	assert.Equal(t, 0, exitCode)
-	assertAutoDetectedGitMetadata(t, stderr, ".", "", "", "")
+	assertGitMetadataDetection(t, stderr, ".", "", "", "")
 	assert.Contains(t, stderr, "  error=\"check git work tree:")
+	assert.Contains(t, stderr, "git -C \\\".\\\" rev-parse --is-inside-work-tree")
 	assert.Contains(t, stderr, missingGitMetadataHint)
 }
 
@@ -534,10 +535,10 @@ func assertNoGitMetadataQuery(t *testing.T, r *http.Request) {
 	assert.False(t, hasGitOrigin)
 }
 
-func assertAutoDetectedGitMetadata(t *testing.T, stderr string, repoPath string, branch string, commitSHA string, origin string) {
+func assertGitMetadataDetection(t *testing.T, stderr string, repoPath string, branch string, commitSHA string, origin string) {
 	t.Helper()
 
-	assert.Contains(t, stderr, fmt.Sprintf("Auto-detected Git metadata from %s:\n", repoPath))
+	assert.Contains(t, stderr, fmt.Sprintf("Git metadata detection from %s:\n", repoPath))
 	assert.Contains(t, stderr, fmt.Sprintf("  git_branch=%q\n", branch))
 	assert.Contains(t, stderr, fmt.Sprintf("  git_commit_sha=%q\n", commitSHA))
 	assert.Contains(t, stderr, fmt.Sprintf("  git_origin=%q\n", origin))
@@ -556,10 +557,20 @@ func captureStderr(t *testing.T, run func() int) (int, string) {
 
 	originalStderr := os.Stderr
 	os.Stderr = writePipe
+	writePipeClosed := false
+	defer func() {
+		os.Stderr = originalStderr
+		if !writePipeClosed {
+			_ = writePipe.Close()
+		}
+	}()
+
 	exitCode := run()
 	os.Stderr = originalStderr
 
-	if err := writePipe.Close(); err != nil {
+	err = writePipe.Close()
+	writePipeClosed = true
+	if err != nil {
 		t.Fatalf("failed to close stderr pipe: %v", err)
 	}
 
@@ -568,6 +579,27 @@ func captureStderr(t *testing.T, run func() int) (int, string) {
 		t.Fatalf("failed to read stderr pipe: %v", err)
 	}
 	return exitCode, string(output)
+}
+
+func TestCaptureStderrRestoresStderrAfterPanic(t *testing.T) {
+	originalStderr := os.Stderr
+	defer func() {
+		os.Stderr = originalStderr
+	}()
+
+	panicked := false
+	func() {
+		defer func() {
+			panicked = recover() != nil
+		}()
+
+		_, _ = captureStderr(t, func() int {
+			panic("test panic")
+		})
+	}()
+
+	assert.True(t, panicked)
+	assert.Same(t, originalStderr, os.Stderr)
 }
 
 func TestCLI_InvalidCommand(t *testing.T) {
