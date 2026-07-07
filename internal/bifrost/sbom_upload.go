@@ -43,7 +43,7 @@ func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, er
 	if opts.enableAutoGitMetadata {
 		autoDetectedGitMetadata := discoverGitMetadata(gitMetadataRepoPath(opts.gitRepoPath))
 		printAutoDetectedGitMetadata(opts.gitRepoPath, autoDetectedGitMetadata)
-		opts = withMissingGitMetadata(opts, autoDetectedGitMetadata)
+		opts = withMissingGitMetadata(opts, autoDetectedGitMetadata.metadata)
 	}
 
 	return &sbomUploadTask{
@@ -91,15 +91,18 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 	return nil
 }
 
-func printAutoDetectedGitMetadata(repoPath string, metadata gitMetadata) {
+func printAutoDetectedGitMetadata(repoPath string, discovery gitMetadataDiscovery) {
 	_, _ = fmt.Fprintf(
 		os.Stderr,
 		autoDetectedGitMetadataMessage,
 		gitMetadataRepoPath(repoPath),
-		metadata.branch,
-		metadata.commitSHA,
-		metadata.origin,
+		discovery.metadata.branch,
+		discovery.metadata.commitSHA,
+		discovery.metadata.origin,
 	)
+	for _, err := range discovery.errors {
+		_, _ = fmt.Fprintf(os.Stderr, "  error=%q\n", err)
+	}
 }
 
 func withMissingGitMetadata(opts Options, metadata gitMetadata) Options {

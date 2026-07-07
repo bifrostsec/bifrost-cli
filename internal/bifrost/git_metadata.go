@@ -4,8 +4,9 @@
 package bifrost
 
 import (
-	"os/exec"
-	"strings"
+	"fmt"
+
+	git "github.com/go-git/go-git/v5"
 )
 
 type gitMetadata struct {
@@ -14,34 +15,46 @@ type gitMetadata struct {
 	origin    string
 }
 
-func discoverGitMetadata(dir string) gitMetadata {
-	insideWorkTree, ok := runGit(dir, "rev-parse", "--is-inside-work-tree")
-	if !ok || insideWorkTree != "true" {
-		return gitMetadata{}
-	}
-
-	branch, _ := runGit(dir, "rev-parse", "--abbrev-ref", "HEAD")
-	if branch == "HEAD" {
-		branch = ""
-	}
-	commitSHA, _ := runGit(dir, "rev-parse", "HEAD")
-	origin, _ := runGit(dir, "config", "--get", "remote.origin.url")
-
-	metadata := gitMetadata{
-		branch:    branch,
-		commitSHA: commitSHA,
-		origin:    origin,
-	}
-	return metadata
+type gitMetadataDiscovery struct {
+	metadata gitMetadata
+	errors   []error
 }
 
-func runGit(dir string, args ...string) (string, bool) {
-	gitArgs := append([]string{"-C", dir}, args...)
-	output, err := exec.Command("git", gitArgs...).Output()
+func discoverGitMetadata(dir string) gitMetadataDiscovery {
+	repo, err := git.PlainOpenWithOptions(dir, &git.PlainOpenOptions{
+		DetectDotGit:          true,
+		EnableDotGitCommonDir: true,
+	})
 	if err != nil {
-		return "", false
+		return gitMetadataDiscovery{
+			errors: []error{fmt.Errorf("open git repository: %w", err)},
+		}
 	}
-	return strings.TrimSpace(string(output)), true
+
+	metadata := gitMetadata{}
+	var errors []error
+	head, err := repo.Head()
+	if err == nil {
+		if head.Name().IsBranch() {
+			metadata.branch = head.Name().Short()
+		}
+		metadata.commitSHA = head.Hash().String()
+	} else {
+		errors = append(errors, fmt.Errorf("read HEAD: %w", err))
+	}
+
+	cfg, err := repo.Config()
+	if err == nil {
+		if origin, ok := cfg.Remotes["origin"]; ok && len(origin.URLs) > 0 {
+			metadata.origin = origin.URLs[0]
+		}
+	} else {
+		errors = append(errors, fmt.Errorf("read git config: %w", err))
+	}
+	return gitMetadataDiscovery{
+		metadata: metadata,
+		errors:   errors,
+	}
 }
 
 func gitMetadataRepoPath(path string) string {

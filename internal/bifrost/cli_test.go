@@ -306,6 +306,38 @@ func TestCLI_ValidCommandOutsideGitRepoOmitsGitMetadata(t *testing.T) {
 	assert.Equal(t, 0, exitCode)
 }
 
+func TestCLI_ValidCommandWithAutoGitMetadataOutsideGitRepoPrintsError(t *testing.T) {
+	tempDir := t.TempDir()
+	chdir(t, tempDir)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertNoGitMetadataQuery(t, r)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--enable-auto-git-metadata",
+		"sbom", "upload", path,
+	}
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
+	assert.Equal(t, 0, exitCode)
+	assertAutoDetectedGitMetadata(t, stderr, ".", "", "", "")
+	assert.Contains(t, stderr, "  error=\"open git repository:")
+	assert.Contains(t, stderr, missingGitMetadataHint)
+}
+
 func TestCLI_ValidCommandWithImage(t *testing.T) {
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Empty(t, r.URL.Query().Get("version"))
