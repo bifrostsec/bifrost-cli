@@ -19,6 +19,7 @@ const (
 	DefaultRetryAttempts = 3
 	DefaultRetryDelay    = 2 * time.Second
 	userAgentProduct     = "bifrost-cli"
+	metadataQueryPrefix  = "metadata."
 )
 
 type API interface {
@@ -26,16 +27,17 @@ type API interface {
 }
 
 type APIConfig struct {
-	ServerURL     string
-	Token         string
-	RetryAttempts int
-	RetryDelay    time.Duration
-	RetryOutput   io.Writer
-	GitBranch     string
-	GitCommitSHA  string
-	GitOrigin     string
-	Image         string
-	CliVersion    string
+	ServerURL      string
+	Token          string
+	RetryAttempts  int
+	RetryDelay     time.Duration
+	RetryOutput    io.Writer
+	GitBranch      string
+	GitCommitSHA   string
+	GitOrigin      string
+	Image          string
+	CliVersion     string
+	CustomMetadata CustomMetadata
 }
 
 type api struct {
@@ -157,6 +159,7 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 	if a.cfg.GitOrigin != "" {
 		query.Set("git_origin", a.cfg.GitOrigin)
 	}
+	addMetadataQueryParams(query, a.cfg.CustomMetadata)
 	req.URL.RawQuery = query.Encode()
 
 	req.Header.Add("Authorization", "Bearer "+a.cfg.Token)
@@ -188,6 +191,16 @@ func userAgent(version string) string {
 		return userAgentProduct
 	}
 	return fmt.Sprintf("%s/%s", userAgentProduct, version)
+}
+
+func addMetadataQueryParams(query url.Values, metadata CustomMetadata) {
+	for key, value := range metadata {
+		query.Set(metadataQueryParamName(key), value)
+	}
+}
+
+func metadataQueryParamName(metadataName string) string {
+	return metadataQueryPrefix + metadataName
 }
 
 type uploadError struct {

@@ -170,6 +170,44 @@ func TestAPI_UploadSBOM_IncludesImageQueryParam(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestAPI_UploadSBOM_IncludesMetadataQueryParams(t *testing.T) {
+	expectedQuery := url.Values{}
+	expectedQuery.Set("version", "test-version")
+	expectedQuery.Set("metadata.github.workflow", "build-and-scan")
+	expectedQuery.Set("metadata.github.run_id", "123456")
+	expectedQuery.Set("metadata.authorization", "metadata-value")
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		assert.Equal(t, expectedQuery.Encode(), r.URL.RawQuery)
+		assert.Equal(t, "build-and-scan", r.URL.Query().Get("metadata.github.workflow"))
+		assert.Equal(t, "123456", r.URL.Query().Get("metadata.github.run_id"))
+		assert.Equal(t, "metadata-value", r.URL.Query().Get("metadata.authorization"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	cfg := newTestAPIConfig(httpServer.URL)
+	cfg.CustomMetadata = CustomMetadata{
+		"github.workflow": "build-and-scan",
+		"github.run_id":   "123456",
+		"authorization":   "metadata-value",
+	}
+
+	api := NewAPI(cfg)
+
+	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
+	assert.NoError(t, err)
+}
+
 func TestAPI_UploadSBOM_RequiresVersionOrImage(t *testing.T) {
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("request should not be sent when both version and image are missing")

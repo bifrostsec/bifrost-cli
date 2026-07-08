@@ -27,6 +27,7 @@ type Options struct {
 	gitOrigin      string
 	gitRepoPath    string
 	gitAutoDetect  bool
+	customMetadata CustomMetadata
 }
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
@@ -42,6 +43,7 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
 	fl.StringVar(&opts.gitRepoPath, "git-repo-path", ".", "Git repository path used for automatic Git metadata detection")
 	fl.BoolVar(&opts.gitAutoDetect, gitAutoDetectFlag, false, "Automatically detect Git metadata (or environment variable BIFROST_GIT_AUTO_DETECT=true)")
+	fl.Var(&opts.customMetadata, "metadata", "Optional custom metadata in key=value format; can be provided multiple times")
 }
 
 func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {

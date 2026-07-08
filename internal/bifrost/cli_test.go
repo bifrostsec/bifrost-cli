@@ -185,6 +185,35 @@ func TestCLI_ValidCommandInGitRepoWithoutGitAutoDetectOmitsGitMetadata(t *testin
 	assert.Equal(t, 0, exitCode)
 }
 
+func TestCLI_ValidCommandWithMetadata(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "build-and-scan", r.URL.Query().Get("metadata.github.workflow"))
+		assert.Equal(t, "123456", r.URL.Query().Get("metadata.github.run_id"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--metadata=github.workflow=build-and-scan",
+		"--metadata=github.run_id=123456",
+		"sbom", "upload", path,
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 0, exitCode)
+}
+
 func TestCLI_ExplicitGitAutoDetectFlagOverridesEnvironment(t *testing.T) {
 	t.Setenv("BIFROST_GIT_AUTO_DETECT", "true")
 	branch := "feature/flag-overrides-env"
@@ -676,4 +705,90 @@ func TestCLI_InvalidRetryDelay(t *testing.T) {
 
 	exitCode := CLI("1.0", "commit", args)
 	assert.Equal(t, 2, exitCode)
+}
+
+func TestCLI_InvalidMetadataFormat(t *testing.T) {
+	args := []string{
+		"--server-url=https://portal.bifrostsec.com",
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--metadata=github.workflow",
+		"sbom", "upload", "test-sbom.json",
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 2, exitCode)
+}
+
+func TestCLI_InvalidMetadataKey(t *testing.T) {
+	args := []string{
+		"--server-url=https://portal.bifrostsec.com",
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--metadata==build",
+		"sbom", "upload", "test-sbom.json",
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 2, exitCode)
+}
+
+func TestCLI_ValidCommandWithSpecialCharacterMetadata(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "build scan", r.URL.Query().Get("metadata.github workflow"))
+		assert.Equal(t, "feature/deployments & scans", r.URL.Query().Get("metadata.github.ref"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--metadata=github workflow=build scan",
+		"--metadata=github.ref=feature/deployments & scans",
+		"sbom", "upload", path,
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 0, exitCode)
+}
+
+func TestCLI_ValidCommandWithSimilarMetadataKeys(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "build", r.URL.Query().Get("metadata.github.workflow"))
+		assert.Equal(t, "scan", r.URL.Query().Get("metadata.github_workflow"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--metadata=github.workflow=build",
+		"--metadata=github_workflow=scan",
+		"sbom", "upload", path,
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 0, exitCode)
 }
