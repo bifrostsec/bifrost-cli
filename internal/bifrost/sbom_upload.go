@@ -43,7 +43,7 @@ func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, er
 	if opts.gitAutoDetect {
 		gitMetadataDetection := discoverGitMetadata(opts.gitRepoPath)
 		printGitMetadataDetection(opts.gitRepoPath, gitMetadataDetection)
-		opts = withMissingGitMetadata(opts, gitMetadataDetection.metadata)
+		opts = applyGitMetadataDetection(opts, gitMetadataDetection.metadata)
 	}
 
 	return &sbomUploadTask{
@@ -105,7 +105,7 @@ func printGitMetadataDetection(gitRepoPath string, discovery gitMetadataDiscover
 	}
 }
 
-func withMissingGitMetadata(opts Options, metadata gitMetadata) Options {
+func applyGitMetadataDetection(opts Options, metadata gitMetadata) Options {
 	if opts.gitBranch == "" {
 		opts.gitBranch = metadata.branch
 	}
