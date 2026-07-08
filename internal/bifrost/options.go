@@ -69,7 +69,7 @@ func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
 		return fmt.Errorf("retry delay must be zero or greater")
 	}
 	// An explicitly passed flag takes precedence over the environment variable.
-	if !flagWasSet(fl, gitAutoDetectFlag) {
+	if !isFlagSet(fl, gitAutoDetectFlag) {
 		if value := os.Getenv("BIFROST_GIT_AUTO_DETECT"); value != "" {
 			gitAutoDetect, err := strconv.ParseBool(value)
 			if err != nil {
@@ -82,12 +82,12 @@ func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
 	return nil
 }
 
-func flagWasSet(fl *flag.FlagSet, name string) bool {
-	set := false
+func isFlagSet(fl *flag.FlagSet, name string) bool {
+	isSet := false
 	fl.Visit(func(f *flag.Flag) {
 		if f.Name == name {
-			set = true
+			isSet = true
 		}
 	})
-	return set
+	return isSet
 }
