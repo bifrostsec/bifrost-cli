@@ -11,7 +11,6 @@ your build pipeline.
 bifrost helps teams understand and reduce real workload risk with runtime security for containerized applications.
 
 Learn more:
-
 - Website: [bifrostsec.com](https://bifrostsec.com/)
 - Documentation: [docs.bifrostsec.com](https://docs.bifrostsec.com/)
 - Portal: [portal.bifrostsec.com](https://portal.bifrostsec.com/)
