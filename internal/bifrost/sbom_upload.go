@@ -58,15 +58,16 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 		return fmt.Errorf("no SBOM file paths provided")
 	}
 	api := NewAPI(APIConfig{
-		ServerURL:     t.ServerURL,
-		Token:         t.apiKey,
-		RetryAttempts: t.retryAttempts,
-		RetryDelay:    t.retryDelay,
-		GitBranch:     t.gitBranch,
-		GitCommitSHA:  t.gitCommitSHA,
-		GitOrigin:     t.gitOrigin,
-		Image:         t.image,
-		CliVersion:    t.cliVersion,
+		ServerURL:      t.ServerURL,
+		Token:          t.apiKey,
+		RetryAttempts:  t.retryAttempts,
+		RetryDelay:     t.retryDelay,
+		GitBranch:      t.gitBranch,
+		GitCommitSHA:   t.gitCommitSHA,
+		GitOrigin:      t.gitOrigin,
+		Image:          t.image,
+		CliVersion:     t.cliVersion,
+		CustomMetadata: t.customMetadata,
 	})
 	stdinConsumed := false
 	for _, path := range t.paths {

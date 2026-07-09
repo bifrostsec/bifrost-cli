@@ -170,6 +170,46 @@ func TestAPI_UploadSBOM_IncludesImageQueryParam(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestAPI_UploadSBOM_IncludesMetadataQueryParams(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		assert.Equal(t, []string{"build-and-scan"}, r.URL.Query()["metadata.github.workflow"])
+		assert.Equal(t, []string{"123456"}, r.URL.Query()["metadata.github.run_id"])
+		assert.Equal(t, []string{"metadata-value"}, r.URL.Query()["metadata.authorization"])
+		assert.ElementsMatch(t, []string{"unit", "integration"}, r.URL.Query()["metadata.test.suite"])
+		assert.Equal(t, []string{"scan"}, r.URL.Query()["metadata.github_workflow"])
+		assert.Equal(t, []string{"build scan"}, r.URL.Query()["metadata.github workflow"])
+		assert.Equal(t, []string{"feature/deployments & scans"}, r.URL.Query()["metadata.github.ref"])
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	cfg := newTestAPIConfig(httpServer.URL)
+	cfg.CustomMetadata = []CustomMetadataEntry{
+		{Key: "github.workflow", Value: "build-and-scan"},
+		{Key: "github.run_id", Value: "123456"},
+		{Key: "authorization", Value: "metadata-value"},
+		{Key: "test.suite", Value: "unit"},
+		{Key: "test.suite", Value: "integration"},
+		{Key: "github_workflow", Value: "scan"},
+		{Key: "github workflow", Value: "build scan"},
+		{Key: "github.ref", Value: "feature/deployments & scans"},
+	}
+
+	api := NewAPI(cfg)
+
+	err = api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
+	assert.NoError(t, err)
+}
+
 func TestAPI_UploadSBOM_RequiresVersionOrImage(t *testing.T) {
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("request should not be sent when both version and image are missing")
