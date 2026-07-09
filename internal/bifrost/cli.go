@@ -32,7 +32,7 @@ func CLI(version, gitCommit string, args []string) int {
 		printUsage(fl)
 		return 2
 	}
-	err = ValidateBaseOptions(&options)
+	err = ValidateBaseOptions(fl, &options)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 		printUsage(fl)

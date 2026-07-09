@@ -16,6 +16,9 @@ type sbomUploadTask struct {
 	cliVersion string
 }
 
+const missingGitMetadataHint = "Hint: no Git metadata was provided. To automatically attach Git metadata, run from a Git repository with --git-auto-detect or set the BIFROST_GIT_AUTO_DETECT=true environment variable. Use --git-repo-path when the repository is elsewhere.\n"
+const gitMetadataDetectionMessage = "Git metadata detection from %s:\n  git_branch=%q\n  git_commit_sha=%q\n  git_origin=%q\n"
+
 func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, error) {
 	if opts.service == "" {
 		opts.service = os.Getenv("SERVICE")
@@ -37,6 +40,12 @@ func NewSBOMUploadTask(opts Options, args []string, cliVersion string) (Task, er
 	if len(args) == 0 {
 		return nil, fmt.Errorf("at least one SBOM file path is required")
 	}
+	if opts.gitAutoDetect {
+		gitMetadataDetection := discoverGitMetadata(opts.gitRepoPath)
+		printGitMetadataDetection(opts.gitRepoPath, gitMetadataDetection)
+		opts = applyGitMetadataDetection(opts, gitMetadataDetection.metadata)
+	}
+
 	return &sbomUploadTask{
 		Options:    opts,
 		paths:      args,
@@ -78,7 +87,42 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 		}
 		fmt.Printf("Uploaded %s to %s\n", path, t.ServerURL)
 	}
+	t.printGitMetadataHint()
 	return nil
+}
+
+func printGitMetadataDetection(gitRepoPath string, discovery gitMetadataDiscovery) {
+	_, _ = fmt.Fprintf(
+		os.Stderr,
+		gitMetadataDetectionMessage,
+		gitRepoPath,
+		discovery.metadata.branch,
+		discovery.metadata.commitSHA,
+		discovery.metadata.origin,
+	)
+	for _, err := range discovery.errors {
+		_, _ = fmt.Fprintf(os.Stderr, "  error=%q\n", err)
+	}
+}
+
+func applyGitMetadataDetection(opts Options, metadata gitMetadata) Options {
+	if opts.gitBranch == "" {
+		opts.gitBranch = metadata.branch
+	}
+	if opts.gitCommitSHA == "" {
+		opts.gitCommitSHA = metadata.commitSHA
+	}
+	if opts.gitOrigin == "" {
+		opts.gitOrigin = metadata.origin
+	}
+	return opts
+}
+
+func (t sbomUploadTask) printGitMetadataHint() {
+	if t.gitBranch != "" || t.gitCommitSHA != "" || t.gitOrigin != "" {
+		return
+	}
+	_, _ = fmt.Fprint(os.Stderr, missingGitMetadataHint)
 }
 
 func (t sbomUploadTask) uploadStdinSBOM(ctx context.Context, api API) error {

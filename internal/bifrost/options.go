@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 )
+
+const gitAutoDetectFlag = "git-auto-detect"
 
 type Options struct {
 	ServerURL      string
@@ -22,6 +25,8 @@ type Options struct {
 	gitBranch      string
 	gitCommitSHA   string
 	gitOrigin      string
+	gitRepoPath    string
+	gitAutoDetect  bool
 }
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
@@ -35,9 +40,11 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.gitBranch, "git-branch", "", "Optional Git branch name for the uploaded SBOM")
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
+	fl.StringVar(&opts.gitRepoPath, "git-repo-path", ".", "Git repository path used for automatic Git metadata detection")
+	fl.BoolVar(&opts.gitAutoDetect, gitAutoDetectFlag, false, "Automatically detect Git metadata (or environment variable BIFROST_GIT_AUTO_DETECT=true)")
 }
 
-func ValidateBaseOptions(opts *Options) error {
+func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
 	if u := os.Getenv("SERVER_URL"); u != "" {
 		opts.ServerURL = u
 	}
@@ -61,6 +68,26 @@ func ValidateBaseOptions(opts *Options) error {
 	if opts.retryDelay < 0 {
 		return fmt.Errorf("retry delay must be zero or greater")
 	}
+	// An explicitly passed flag takes precedence over the environment variable.
+	if !isFlagSet(fl, gitAutoDetectFlag) {
+		if value := os.Getenv("BIFROST_GIT_AUTO_DETECT"); value != "" {
+			gitAutoDetect, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("BIFROST_GIT_AUTO_DETECT must be a boolean")
+			}
+			opts.gitAutoDetect = gitAutoDetect
+		}
+	}
 
 	return nil
+}
+
+func isFlagSet(fl *flag.FlagSet, name string) bool {
+	isSet := false
+	fl.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			isSet = true
+		}
+	})
+	return isSet
 }
