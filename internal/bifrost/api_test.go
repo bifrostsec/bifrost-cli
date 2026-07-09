@@ -178,6 +178,9 @@ func TestAPI_UploadSBOM_IncludesMetadataQueryParams(t *testing.T) {
 		assert.Equal(t, []string{"123456"}, r.URL.Query()["metadata.github.run_id"])
 		assert.Equal(t, []string{"metadata-value"}, r.URL.Query()["metadata.authorization"])
 		assert.ElementsMatch(t, []string{"unit", "integration"}, r.URL.Query()["metadata.test.suite"])
+		assert.Equal(t, []string{"scan"}, r.URL.Query()["metadata.github_workflow"])
+		assert.Equal(t, []string{"build scan"}, r.URL.Query()["metadata.github workflow"])
+		assert.Equal(t, []string{"feature/deployments & scans"}, r.URL.Query()["metadata.github.ref"])
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpServer.Close()
@@ -196,6 +199,9 @@ func TestAPI_UploadSBOM_IncludesMetadataQueryParams(t *testing.T) {
 		{Key: "authorization", Value: "metadata-value"},
 		{Key: "test.suite", Value: "unit"},
 		{Key: "test.suite", Value: "integration"},
+		{Key: "github_workflow", Value: "scan"},
+		{Key: "github workflow", Value: "build scan"},
+		{Key: "github.ref", Value: "feature/deployments & scans"},
 	}
 
 	api := NewAPI(cfg)
