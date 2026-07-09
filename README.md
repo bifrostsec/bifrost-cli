@@ -181,8 +181,7 @@ gh api \
 
 - Website: [bifrostsec.com](https://bifrostsec.com/)
 - Documentation: [docs.bifrostsec.com](https://docs.bifrostsec.com/)
--
-Releases: [github.com/bifrostsec/bifrost-cli/releases/latest](https://github.com/bifrostsec/bifrost-cli/releases/latest)
+- Releases: [github.com/bifrostsec/bifrost-cli/releases/latest](https://github.com/bifrostsec/bifrost-cli/releases/latest)
 - Getting started guide: [docs.bifrostsec.com/guides/get-started](https://docs.bifrostsec.com/guides/get-started/)
 - SBOM reference: [https://docs.bifrostsec.com/reference/sbom/](https://docs.bifrostsec.com/reference/sbom/)
 - API reference: [docs.bifrostsec.com/api/v2](https://docs.bifrostsec.com/api/v2/)
