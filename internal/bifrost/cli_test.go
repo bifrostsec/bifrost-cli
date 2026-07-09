@@ -792,3 +792,31 @@ func TestCLI_ValidCommandWithSimilarMetadataKeys(t *testing.T) {
 	exitCode := CLI("1.0", "commit", args)
 	assert.Equal(t, 0, exitCode)
 }
+
+func TestCLI_ValidCommandWithRepeatedMetadataKey(t *testing.T) {
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.ElementsMatch(t, []string{"unit", "integration"}, r.URL.Query()["metadata.test.suite"])
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--metadata=test.suite=unit",
+		"--metadata=test.suite=integration",
+		"sbom", "upload", path,
+	}
+
+	exitCode := CLI("1.0", "commit", args)
+	assert.Equal(t, 0, exitCode)
+}

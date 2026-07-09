@@ -171,19 +171,13 @@ func TestAPI_UploadSBOM_IncludesImageQueryParam(t *testing.T) {
 }
 
 func TestAPI_UploadSBOM_IncludesMetadataQueryParams(t *testing.T) {
-	expectedQuery := url.Values{}
-	expectedQuery.Set("version", "test-version")
-	expectedQuery.Set("metadata.github.workflow", "build-and-scan")
-	expectedQuery.Set("metadata.github.run_id", "123456")
-	expectedQuery.Set("metadata.authorization", "metadata-value")
-
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		assert.Equal(t, expectedQuery.Encode(), r.URL.RawQuery)
-		assert.Equal(t, "build-and-scan", r.URL.Query().Get("metadata.github.workflow"))
-		assert.Equal(t, "123456", r.URL.Query().Get("metadata.github.run_id"))
-		assert.Equal(t, "metadata-value", r.URL.Query().Get("metadata.authorization"))
+		assert.Equal(t, []string{"build-and-scan"}, r.URL.Query()["metadata.github.workflow"])
+		assert.Equal(t, []string{"123456"}, r.URL.Query()["metadata.github.run_id"])
+		assert.Equal(t, []string{"metadata-value"}, r.URL.Query()["metadata.authorization"])
+		assert.ElementsMatch(t, []string{"unit", "integration"}, r.URL.Query()["metadata.test.suite"])
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpServer.Close()
@@ -196,10 +190,12 @@ func TestAPI_UploadSBOM_IncludesMetadataQueryParams(t *testing.T) {
 	}()
 
 	cfg := newTestAPIConfig(httpServer.URL)
-	cfg.CustomMetadata = CustomMetadata{
-		"github.workflow": "build-and-scan",
-		"github.run_id":   "123456",
-		"authorization":   "metadata-value",
+	cfg.CustomMetadata = []CustomMetadataEntry{
+		{Key: "github.workflow", Value: "build-and-scan"},
+		{Key: "github.run_id", Value: "123456"},
+		{Key: "authorization", Value: "metadata-value"},
+		{Key: "test.suite", Value: "unit"},
+		{Key: "test.suite", Value: "integration"},
 	}
 
 	api := NewAPI(cfg)

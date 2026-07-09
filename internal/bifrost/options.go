@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strconv"
+	"strings"
 	"time"
 )
 
@@ -27,7 +27,7 @@ type Options struct {
 	gitOrigin      string
 	gitRepoPath    string
 	gitAutoDetect  bool
-	customMetadata CustomMetadata
+	customMetadata []CustomMetadataEntry
 }
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
@@ -43,7 +43,19 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
 	fl.StringVar(&opts.gitRepoPath, "git-repo-path", ".", "Git repository path used for automatic Git metadata detection")
 	fl.BoolVar(&opts.gitAutoDetect, gitAutoDetectFlag, false, "Automatically detect Git metadata (or environment variable BIFROST_GIT_AUTO_DETECT=true)")
-	fl.Var(&opts.customMetadata, "metadata", "Optional custom metadata in key=value format; can be provided multiple times")
+	fl.Func("metadata", "Optional custom metadata in key=value format; can be provided multiple times", opts.addCustomMetadata)
+}
+
+func (opts *Options) addCustomMetadata(value string) error {
+	key, val, ok := strings.Cut(value, "=")
+	if !ok {
+		return fmt.Errorf("metadata must be in key=value format")
+	}
+	if key == "" {
+		return fmt.Errorf("metadata key is required")
+	}
+	opts.customMetadata = append(opts.customMetadata, CustomMetadataEntry{Key: key, Value: val})
+	return nil
 }
 
 func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {

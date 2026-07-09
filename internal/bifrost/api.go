@@ -37,7 +37,7 @@ type APIConfig struct {
 	GitOrigin      string
 	Image          string
 	CliVersion     string
-	CustomMetadata CustomMetadata
+	CustomMetadata []CustomMetadataEntry
 }
 
 type api struct {
@@ -193,9 +193,9 @@ func userAgent(version string) string {
 	return fmt.Sprintf("%s/%s", userAgentProduct, version)
 }
 
-func addMetadataQueryParams(query url.Values, metadata CustomMetadata) {
-	for key, value := range metadata {
-		query.Set(metadataQueryParamName(key), value)
+func addMetadataQueryParams(query url.Values, metadata []CustomMetadataEntry) {
+	for _, entry := range metadata {
+		query.Add(metadataQueryParamName(entry.Key), entry.Value)
 	}
 }
 
