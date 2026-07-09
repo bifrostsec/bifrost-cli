@@ -195,12 +195,8 @@ func userAgent(version string) string {
 
 func addMetadataQueryParams(query url.Values, metadata []CustomMetadataEntry) {
 	for _, entry := range metadata {
-		query.Add(metadataQueryParamName(entry.Key), entry.Value)
+		query.Add(metadataQueryPrefix+entry.Key, entry.Value)
 	}
-}
-
-func metadataQueryParamName(metadataName string) string {
-	return metadataQueryPrefix + metadataName
 }
 
 type uploadError struct {
