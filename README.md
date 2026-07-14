@@ -117,23 +117,28 @@ Git metadata is optional. You can attach it manually:
 ./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 --git-branch=main --git-commit-sha=abc123 --git-origin=https://github.com/example/project.git sbom upload /path/to/sbom.json
 ```
 
-You can also enable automatic Git metadata detection. When enabled, bifrost fills in missing Git metadata from the
-current Git repository when those values are available:
+You can also automatically fill in missing Git metadata by providing the repository path. Use `.` for the current
+directory:
 
 ```bash
-./bifrost --service=my-service --service-version=1.2.3 --git-auto-detect sbom upload /path/to/sbom.json
+./bifrost --service=my-service --service-version=1.2.3 --git-repo-path=. sbom upload /path/to/sbom.json
 ```
 
-To detect metadata from a specific path:
+The path can be absolute or relative to the current directory:
 
 ```bash
-./bifrost --service=my-service --service-version=1.2.3 --git-auto-detect --git-repo-path=/path/to/repo sbom upload /path/to/sbom.json
+./bifrost --service=my-service --service-version=1.2.3 --git-repo-path=/path/to/repo sbom upload /path/to/sbom.json
 ```
 
-You can enable automatic Git metadata detection with:
+The repository path can also be exported as an environment variable:
 
-- The `BIFROST_GIT_AUTO_DETECT=true` environment variable
-- The `--git-auto-detect` flag
+```bash
+export BIFROST_GIT_REPO_PATH=.
+./bifrost --service=my-service --service-version=1.2.3 sbom upload /path/to/sbom.json
+```
+
+When neither `--git-repo-path` nor `BIFROST_GIT_REPO_PATH` is provided, bifrost does not automatically detect Git
+metadata.
 
 Example with Trivy generating a CycloneDX SBOM for a container image and piping it directly to bifrost:
 
@@ -165,8 +170,7 @@ gh api \
 | `--git-branch`               | No          |                                    | Git branch name to attach to the upload.                                                          |
 | `--git-commit-sha`           | No          |                                    | Git commit SHA to attach to the upload.                                                           |
 | `--git-origin`               | No          |                                    | Git origin URL to attach to the upload.                                                           |
-| `--git-repo-path`            | No          |                                    | Git repository path used for automatic Git metadata detection. Defaults to the current directory. |
-| `--git-auto-detect`          | No          | `BIFROST_GIT_AUTO_DETECT`          | Automatically fill missing Git metadata from the current Git repository when available.           |
+| `--git-repo-path`            | No          | `BIFROST_GIT_REPO_PATH`            | Git repository path used for automatic Git metadata detection.                                    |
 | `--help`                     | No          |                                    | Show help and exit.                                                                               |
 
 ## Useful Links
