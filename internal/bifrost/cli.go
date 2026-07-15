@@ -4,11 +4,13 @@
 package bifrost
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 )
 
 type Task interface {
@@ -27,12 +29,15 @@ func CLI(version, gitCommit string, args []string) int {
 	if err != nil {
 		return 2
 	}
+	if isFlagSet(fl, gitAutoDetectFlag) || isDeprecatedGitAutoDetectEnvironmentSet(fl, &options) {
+		_, _ = fmt.Fprint(os.Stderr, gitAutoDetectDeprecationWarning)
+	}
 	if *showHelp || len(fl.Args()) == 0 {
 		printHeader(version, gitCommit)
 		printUsage(fl)
 		return 2
 	}
-	err = ValidateBaseOptions(&options)
+	err = ValidateBaseOptions(fl, &options)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 		printUsage(fl)
@@ -71,5 +76,26 @@ func printUsage(fl *flag.FlagSet) {
 	_, _ = fmt.Fprintf(os.Stderr, "Usage:\n")
 	_, _ = fmt.Fprintf(os.Stderr, "  bifrost (options) sbom upload <sbom_path|->\n\n")
 	_, _ = fmt.Fprintf(os.Stderr, "Options:\n")
+	printVisibleDefaults(fl)
+}
+
+func printVisibleDefaults(fl *flag.FlagSet) {
+	output := fl.Output()
+	var defaults bytes.Buffer
+	fl.SetOutput(&defaults)
 	fl.PrintDefaults()
+	fl.SetOutput(output)
+
+	skipDeprecatedFlagDescription := false
+	for _, line := range strings.SplitAfter(defaults.String(), "\n") {
+		if strings.HasPrefix(line, "  -"+gitAutoDetectFlag) {
+			skipDeprecatedFlagDescription = true
+			continue
+		}
+		if skipDeprecatedFlagDescription && strings.HasPrefix(line, "    \t") {
+			continue
+		}
+		skipDeprecatedFlagDescription = false
+		_, _ = fmt.Fprint(output, line)
+	}
 }

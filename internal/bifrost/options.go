@@ -8,10 +8,16 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 )
 
-const gitRepoPathFlag = "git-repo-path"
+const (
+	gitRepoPathFlag                  = "git-repo-path"
+	gitAutoDetectFlag                = "git-auto-detect"
+	gitAutoDetectEnvironmentVariable = "BIFROST_GIT_AUTO_DETECT"
+	gitAutoDetectDeprecationWarning  = "Warning: legacy Git auto-detection configuration is deprecated; use --git-repo-path=. or BIFROST_GIT_REPO_PATH=. instead.\n"
+)
 
 type Options struct {
 	ServerURL      string
@@ -25,6 +31,7 @@ type Options struct {
 	gitCommitSHA   string
 	gitOrigin      string
 	gitRepoPath    string
+	gitAutoDetect  bool
 }
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
@@ -39,9 +46,10 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
 	fl.StringVar(&opts.gitRepoPath, gitRepoPathFlag, "", "Git repository path used for automatic Git metadata detection (or BIFROST_GIT_REPO_PATH environment variable)")
+	fl.BoolVar(&opts.gitAutoDetect, gitAutoDetectFlag, false, "Deprecated: use --git-repo-path=.")
 }
 
-func ValidateBaseOptions(opts *Options) error {
+func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
 	if u := os.Getenv("SERVER_URL"); u != "" {
 		opts.ServerURL = u
 	}
@@ -69,5 +77,52 @@ func ValidateBaseOptions(opts *Options) error {
 		opts.gitRepoPath = os.Getenv("BIFROST_GIT_REPO_PATH")
 	}
 
+	err = handleDeprecatedGitAutoDetect(fl, opts)
+	if err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func handleDeprecatedGitAutoDetect(fl *flag.FlagSet, opts *Options) error {
+	if opts.gitRepoPath != "" {
+		// Git repository path is explicitly set, no need to handle deprecated auto-detect
+		return nil
+	}
+
+	// Check if Deprecated `git-auto-detect` flag is set or if its corresponding environment variable is set
+	if !isFlagSet(fl, gitAutoDetectFlag) {
+		if value := os.Getenv("BIFROST_GIT_AUTO_DETECT"); value != "" {
+			gitAutoDetect, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("BIFROST_GIT_AUTO_DETECT must be a boolean")
+			}
+			opts.gitAutoDetect = gitAutoDetect
+		}
+	}
+
+	if opts.gitAutoDetect {
+		// Deprecated `git-auto-detect` is set, configure path to current directory
+		opts.gitRepoPath = "."
+	}
+
+	return nil
+}
+
+func isDeprecatedGitAutoDetectEnvironmentSet(fl *flag.FlagSet, opts *Options) bool {
+	return opts.gitRepoPath == "" &&
+		os.Getenv("BIFROST_GIT_REPO_PATH") == "" &&
+		!isFlagSet(fl, gitAutoDetectFlag) &&
+		os.Getenv(gitAutoDetectEnvironmentVariable) != ""
+}
+
+func isFlagSet(fl *flag.FlagSet, name string) bool {
+	isSet := false
+	fl.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			isSet = true
+		}
+	})
+	return isSet
 }
