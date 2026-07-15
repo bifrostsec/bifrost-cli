@@ -50,7 +50,7 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
 	fl.StringVar(&opts.gitRepoPath, gitRepoPathFlag, "", "Git repository path used for automatic Git metadata detection (or BIFROST_GIT_REPO_PATH environment variable)")
-	fl.BoolVar(&opts.gitAutoDetect, gitAutoDetectFlag, false, "Deprecated: use --git-repo-path=.")
+	fl.BoolVar(&opts.gitAutoDetect, gitAutoDetectFlag, false, "DEPRECATED: use --git-repo-path=.")
 }
 
 func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {

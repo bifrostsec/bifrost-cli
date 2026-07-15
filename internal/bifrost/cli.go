@@ -4,13 +4,11 @@
 package bifrost
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 )
 
 type Task interface {
@@ -76,26 +74,5 @@ func printUsage(fl *flag.FlagSet) {
 	_, _ = fmt.Fprintf(os.Stderr, "Usage:\n")
 	_, _ = fmt.Fprintf(os.Stderr, "  bifrost (options) sbom upload <sbom_path|->\n\n")
 	_, _ = fmt.Fprintf(os.Stderr, "Options:\n")
-	printVisibleDefaults(fl)
-}
-
-func printVisibleDefaults(fl *flag.FlagSet) {
-	output := fl.Output()
-	var defaults bytes.Buffer
-	fl.SetOutput(&defaults)
 	fl.PrintDefaults()
-	fl.SetOutput(output)
-
-	skipDeprecatedFlagDescription := false
-	for _, line := range strings.SplitAfter(defaults.String(), "\n") {
-		if strings.HasPrefix(line, "  -"+gitAutoDetectFlag) {
-			skipDeprecatedFlagDescription = true
-			continue
-		}
-		if skipDeprecatedFlagDescription && strings.HasPrefix(line, "    \t") {
-			continue
-		}
-		skipDeprecatedFlagDescription = false
-		_, _ = fmt.Fprint(output, line)
-	}
 }
