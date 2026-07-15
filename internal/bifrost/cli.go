@@ -27,6 +27,9 @@ func CLI(version, gitCommit string, args []string) int {
 	if err != nil {
 		return 2
 	}
+	if isDeprecatedGitAutoDetectSet(fl, &options) {
+		_, _ = fmt.Fprint(os.Stderr, gitAutoDetectDeprecationWarning)
+	}
 	if *showHelp || len(fl.Args()) == 0 {
 		printHeader(version, gitCommit)
 		printUsage(fl)

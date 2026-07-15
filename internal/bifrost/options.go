@@ -12,7 +12,16 @@ import (
 	"time"
 )
 
-const gitAutoDetectFlag = "git-auto-detect"
+const (
+	gitRepoPathFlag                = "git-repo-path"
+	gitRepoPathEnvironmentVariable = "BIFROST_GIT_REPO_PATH"
+
+	// Deprecated: use --git-repo-path instead.
+	gitAutoDetectFlag = "git-auto-detect"
+	// Deprecated: use BIFROST_GIT_REPO_PATH instead.
+	gitAutoDetectEnvironmentVariable = "BIFROST_GIT_AUTO_DETECT"
+	gitAutoDetectDeprecationWarning  = "Warning: legacy Git auto-detection configuration is deprecated; use --git-repo-path=. or BIFROST_GIT_REPO_PATH=. instead.\n"
+)
 
 type Options struct {
 	ServerURL      string
@@ -26,7 +35,7 @@ type Options struct {
 	gitCommitSHA   string
 	gitOrigin      string
 	gitRepoPath    string
-	gitAutoDetect  bool
+	gitAutoDetect  bool // Deprecated: retained for the legacy flag and environment variable.
 }
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
@@ -40,8 +49,8 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.gitBranch, "git-branch", "", "Optional Git branch name for the uploaded SBOM")
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
-	fl.StringVar(&opts.gitRepoPath, "git-repo-path", ".", "Git repository path used for automatic Git metadata detection")
-	fl.BoolVar(&opts.gitAutoDetect, gitAutoDetectFlag, false, "Automatically detect Git metadata (or environment variable BIFROST_GIT_AUTO_DETECT=true)")
+	fl.StringVar(&opts.gitRepoPath, gitRepoPathFlag, "", "Git repository path used for automatic Git metadata detection (or BIFROST_GIT_REPO_PATH environment variable)")
+	fl.BoolVar(&opts.gitAutoDetect, gitAutoDetectFlag, false, "DEPRECATED: use --git-repo-path=.")
 }
 
 func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
@@ -68,9 +77,31 @@ func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
 	if opts.retryDelay < 0 {
 		return fmt.Errorf("retry delay must be zero or greater")
 	}
-	// An explicitly passed flag takes precedence over the environment variable.
+	if opts.gitRepoPath == "" {
+		opts.gitRepoPath = os.Getenv(gitRepoPathEnvironmentVariable)
+	}
+
+	err = handleDeprecatedGitAutoDetect(fl, opts)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// handleDeprecatedGitAutoDetect translates legacy auto-detection configuration
+// into the Git repository path.
+//
+// Deprecated: use gitRepoPath instead.
+func handleDeprecatedGitAutoDetect(fl *flag.FlagSet, opts *Options) error {
+	if opts.gitRepoPath != "" {
+		// A repository path is already configured, so legacy auto-detection is ignored.
+		return nil
+	}
+
+	// The legacy flag takes precedence over its corresponding environment variable.
 	if !isFlagSet(fl, gitAutoDetectFlag) {
-		if value := os.Getenv("BIFROST_GIT_AUTO_DETECT"); value != "" {
+		if value := os.Getenv(gitAutoDetectEnvironmentVariable); value != "" {
 			gitAutoDetect, err := strconv.ParseBool(value)
 			if err != nil {
 				return fmt.Errorf("BIFROST_GIT_AUTO_DETECT must be a boolean")
@@ -79,7 +110,22 @@ func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
 		}
 	}
 
+	if opts.gitAutoDetect {
+		// Legacy auto-detection uses the current directory as the repository path.
+		opts.gitRepoPath = "."
+	}
+
 	return nil
+}
+
+// isDeprecatedGitAutoDetectSet reports whether legacy automatic Git metadata
+// detection is configured through its flag or environment variable.
+//
+// Deprecated: use gitRepoPath instead.
+func isDeprecatedGitAutoDetectSet(fl *flag.FlagSet, opts *Options) bool {
+	return opts.gitRepoPath == "" &&
+		os.Getenv(gitRepoPathEnvironmentVariable) == "" &&
+		(isFlagSet(fl, gitAutoDetectFlag) || os.Getenv(gitAutoDetectEnvironmentVariable) != "")
 }
 
 func isFlagSet(fl *flag.FlagSet, name string) bool {
