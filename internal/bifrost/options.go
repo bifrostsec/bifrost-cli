@@ -13,9 +13,12 @@ import (
 )
 
 const (
-	gitRepoPathFlag                  = "git-repo-path"
-	gitRepoPathEnvironmentVariable   = "BIFROST_GIT_REPO_PATH"
-	gitAutoDetectFlag                = "git-auto-detect"
+	gitRepoPathFlag                = "git-repo-path"
+	gitRepoPathEnvironmentVariable = "BIFROST_GIT_REPO_PATH"
+
+	// Deprecated: use --git-repo-path instead.
+	gitAutoDetectFlag = "git-auto-detect"
+	// Deprecated: use BIFROST_GIT_REPO_PATH instead.
 	gitAutoDetectEnvironmentVariable = "BIFROST_GIT_AUTO_DETECT"
 	gitAutoDetectDeprecationWarning  = "Warning: legacy Git auto-detection configuration is deprecated; use --git-repo-path=. or BIFROST_GIT_REPO_PATH=. instead.\n"
 )
@@ -32,7 +35,7 @@ type Options struct {
 	gitCommitSHA   string
 	gitOrigin      string
 	gitRepoPath    string
-	gitAutoDetect  bool
+	gitAutoDetect  bool // Deprecated: retained for the legacy flag and environment variable.
 }
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
@@ -86,13 +89,17 @@ func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
 	return nil
 }
 
+// handleDeprecatedGitAutoDetect translates legacy auto-detection configuration
+// into the Git repository path.
+//
+// Deprecated: use gitRepoPath instead.
 func handleDeprecatedGitAutoDetect(fl *flag.FlagSet, opts *Options) error {
 	if opts.gitRepoPath != "" {
-		// Git repository path is explicitly set, no need to handle deprecated auto-detect
+		// A repository path is already configured, so legacy auto-detection is ignored.
 		return nil
 	}
 
-	// Check if Deprecated `git-auto-detect` flag is set or if its corresponding environment variable is set
+	// The legacy flag takes precedence over its corresponding environment variable.
 	if !isFlagSet(fl, gitAutoDetectFlag) {
 		if value := os.Getenv(gitAutoDetectEnvironmentVariable); value != "" {
 			gitAutoDetect, err := strconv.ParseBool(value)
@@ -104,13 +111,17 @@ func handleDeprecatedGitAutoDetect(fl *flag.FlagSet, opts *Options) error {
 	}
 
 	if opts.gitAutoDetect {
-		// Deprecated `git-auto-detect` is set, configure path to current directory
+		// Legacy auto-detection uses the current directory as the repository path.
 		opts.gitRepoPath = "."
 	}
 
 	return nil
 }
 
+// isDeprecatedGitAutoDetectEnvironmentSet reports whether the legacy environment
+// variable enables automatic Git metadata detection.
+//
+// Deprecated: use BIFROST_GIT_REPO_PATH instead.
 func isDeprecatedGitAutoDetectEnvironmentSet(fl *flag.FlagSet, opts *Options) bool {
 	return opts.gitRepoPath == "" &&
 		os.Getenv(gitRepoPathEnvironmentVariable) == "" &&
