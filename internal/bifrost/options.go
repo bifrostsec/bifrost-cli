@@ -93,7 +93,7 @@ func handleDeprecatedGitAutoDetect(fl *flag.FlagSet, opts *Options) error {
 
 	// Check if Deprecated `git-auto-detect` flag is set or if its corresponding environment variable is set
 	if !isFlagSet(fl, gitAutoDetectFlag) {
-		if value := os.Getenv("BIFROST_GIT_AUTO_DETECT"); value != "" {
+		if value := os.Getenv(gitAutoDetectEnvironmentVariable); value != "" {
 			gitAutoDetect, err := strconv.ParseBool(value)
 			if err != nil {
 				return fmt.Errorf("BIFROST_GIT_AUTO_DETECT must be a boolean")
