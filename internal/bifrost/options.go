@@ -112,7 +112,7 @@ func handleDeprecatedGitAutoDetect(fl *flag.FlagSet, opts *Options) error {
 
 func isDeprecatedGitAutoDetectEnvironmentSet(fl *flag.FlagSet, opts *Options) bool {
 	return opts.gitRepoPath == "" &&
-		os.Getenv("BIFROST_GIT_REPO_PATH") == "" &&
+		os.Getenv(gitAutoDetectEnvironmentVariable) == "" &&
 		!isFlagSet(fl, gitAutoDetectFlag) &&
 		os.Getenv(gitAutoDetectEnvironmentVariable) != ""
 }
