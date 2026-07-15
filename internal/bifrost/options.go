@@ -14,6 +14,7 @@ import (
 
 const (
 	gitRepoPathFlag                  = "git-repo-path"
+	gitRepoPathEnvironmentVariable   = "BIFROST_GIT_REPO_PATH"
 	gitAutoDetectFlag                = "git-auto-detect"
 	gitAutoDetectEnvironmentVariable = "BIFROST_GIT_AUTO_DETECT"
 	gitAutoDetectDeprecationWarning  = "Warning: legacy Git auto-detection configuration is deprecated; use --git-repo-path=. or BIFROST_GIT_REPO_PATH=. instead.\n"
@@ -74,7 +75,7 @@ func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
 		return fmt.Errorf("retry delay must be zero or greater")
 	}
 	if opts.gitRepoPath == "" {
-		opts.gitRepoPath = os.Getenv("BIFROST_GIT_REPO_PATH")
+		opts.gitRepoPath = os.Getenv(gitRepoPathEnvironmentVariable)
 	}
 
 	err = handleDeprecatedGitAutoDetect(fl, opts)
@@ -112,7 +113,7 @@ func handleDeprecatedGitAutoDetect(fl *flag.FlagSet, opts *Options) error {
 
 func isDeprecatedGitAutoDetectEnvironmentSet(fl *flag.FlagSet, opts *Options) bool {
 	return opts.gitRepoPath == "" &&
-		os.Getenv(gitAutoDetectEnvironmentVariable) == "" &&
+		os.Getenv(gitRepoPathEnvironmentVariable) == "" &&
 		!isFlagSet(fl, gitAutoDetectFlag) &&
 		os.Getenv(gitAutoDetectEnvironmentVariable) != ""
 }
