@@ -118,15 +118,14 @@ func handleDeprecatedGitAutoDetect(fl *flag.FlagSet, opts *Options) error {
 	return nil
 }
 
-// isDeprecatedGitAutoDetectEnvironmentSet reports whether the legacy environment
-// variable enables automatic Git metadata detection.
+// isDeprecatedGitAutoDetectSet reports whether legacy automatic Git metadata
+// detection is configured through its flag or environment variable.
 //
-// Deprecated: use BIFROST_GIT_REPO_PATH instead.
-func isDeprecatedGitAutoDetectEnvironmentSet(fl *flag.FlagSet, opts *Options) bool {
+// Deprecated: use gitRepoPath instead.
+func isDeprecatedGitAutoDetectSet(fl *flag.FlagSet, opts *Options) bool {
 	return opts.gitRepoPath == "" &&
 		os.Getenv(gitRepoPathEnvironmentVariable) == "" &&
-		!isFlagSet(fl, gitAutoDetectFlag) &&
-		os.Getenv(gitAutoDetectEnvironmentVariable) != ""
+		(isFlagSet(fl, gitAutoDetectFlag) || os.Getenv(gitAutoDetectEnvironmentVariable) != "")
 }
 
 func isFlagSet(fl *flag.FlagSet, name string) bool {
