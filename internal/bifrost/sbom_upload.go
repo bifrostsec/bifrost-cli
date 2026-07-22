@@ -62,6 +62,7 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 		Token:         t.apiKey,
 		RetryAttempts: t.retryAttempts,
 		RetryDelay:    t.retryDelay,
+		HTTPTimeout:   t.httpTimeout,
 		GitBranch:     t.gitBranch,
 		GitCommitSHA:  t.gitCommitSHA,
 		GitOrigin:     t.gitOrigin,
