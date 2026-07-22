@@ -65,11 +65,7 @@ func (fl *AliasedFlagSet) PrintDefaults(output io.Writer) {
 func formatFlagNames(names []string) string {
 	sort.Strings(names[1:])
 	for i, name := range names {
-		if len(name) == 1 {
-			names[i] = "-" + name
-		} else {
-			names[i] = "-" + name
-		}
+		names[i] = "-" + name
 	}
 	return strings.Join(names, ", ")
 }

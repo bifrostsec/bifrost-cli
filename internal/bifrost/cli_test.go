@@ -669,7 +669,7 @@ func TestCLI_HelpWritesToStdoutAndExitsSuccessfully(t *testing.T) {
 			assert.Equal(t, 0, exitCode)
 			assert.Contains(t, stdout, "bifrost CLI (ver: 1.0, commit: commit")
 			assert.Contains(t, stdout, "Usage:")
-			assert.Contains(t, stdout, "  --help, -h\n    show this help and exit\n")
+			assert.Contains(t, stdout, "  -help, -h\n    show this help and exit\n")
 			assert.NotContains(t, stdout, "  -help\n")
 			assert.NotContains(t, stdout, "  -h\n")
 			assert.Empty(t, stderr)
