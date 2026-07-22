@@ -7,6 +7,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 )
@@ -18,40 +19,49 @@ type Task interface {
 func CLI(version, gitCommit string, args []string) int {
 	fl := flag.NewFlagSet("", flag.ContinueOnError)
 	showHelp := fl.Bool("help", false, "show this help and exit")
+	fl.BoolVar(showHelp, "h", false, "alias for --help")
 	fl.Usage = func() {
-		printUsage(fl)
+		printUsage(os.Stderr, fl)
 	}
 	options := Options{}
 	RegisterOptions(fl, &options)
+	if hasHelpFlag(args) {
+		printHelp(os.Stdout, fl, version, gitCommit)
+		return 0
+	}
 	err := fl.Parse(args)
 	if err != nil {
 		return 2
 	}
-	if *showHelp || len(fl.Args()) == 0 {
-		printHeader(version, gitCommit)
-		printUsage(fl)
+	remaining := fl.Args()
+	if *showHelp {
+		printHelp(os.Stdout, fl, version, gitCommit)
+		return 0
+	}
+	if len(remaining) == 0 {
+		printHeader(os.Stderr, version, gitCommit)
+		printUsage(os.Stderr, fl)
 		return 2
 	}
 	err = ValidateBaseOptions(fl, &options)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
-		printUsage(fl)
+		printUsage(os.Stderr, fl)
 		return 2
 	}
 
-	remaining := fl.Args()
 	var task Task
 	switch {
 	case len(remaining) >= 2 && remaining[0] == "sbom" && remaining[1] == "upload":
 		task, err = NewSBOMUploadTask(options, remaining[2:], version)
 	default:
 		_, _ = fmt.Fprintf(os.Stderr, "Error: Unrecognized command\n\n")
-		printUsage(fl)
+		printUsage(os.Stderr, fl)
 		return 2
 	}
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
-		printUsage(fl)
+		printUsage(os.Stderr, fl)
 		return 2
 	}
 
@@ -63,13 +73,28 @@ func CLI(version, gitCommit string, args []string) int {
 	return 0
 }
 
-func printHeader(version, gitCommit string) {
-	_, _ = fmt.Fprintf(os.Stderr, "bifrost CLI (ver: %s, commit: %s, %s)\n\n", version, gitCommit, runtime.Version())
+func hasHelpFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "--help" || arg == "-h" {
+			return true
+		}
+	}
+	return false
 }
 
-func printUsage(fl *flag.FlagSet) {
-	_, _ = fmt.Fprintf(os.Stderr, "Usage:\n")
-	_, _ = fmt.Fprintf(os.Stderr, "  bifrost (options) sbom upload <sbom_path|->\n\n")
-	_, _ = fmt.Fprintf(os.Stderr, "Options:\n")
+func printHelp(output io.Writer, fl *flag.FlagSet, version, gitCommit string) {
+	printHeader(output, version, gitCommit)
+	printUsage(output, fl)
+}
+
+func printHeader(output io.Writer, version, gitCommit string) {
+	_, _ = fmt.Fprintf(output, "bifrost CLI (ver: %s, commit: %s, %s)\n\n", version, gitCommit, runtime.Version())
+}
+
+func printUsage(output io.Writer, fl *flag.FlagSet) {
+	_, _ = fmt.Fprintf(output, "Usage:\n")
+	_, _ = fmt.Fprintf(output, "  bifrost (options) sbom upload <sbom_path|->\n\n")
+	_, _ = fmt.Fprintf(output, "Options:\n")
+	fl.SetOutput(output)
 	fl.PrintDefaults()
 }

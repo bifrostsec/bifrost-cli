@@ -581,6 +581,53 @@ func captureStderr(t *testing.T, run func() int) (int, string) {
 	return exitCode, string(output)
 }
 
+func captureOutput(t *testing.T, run func() int) (int, string, string) {
+	t.Helper()
+
+	stdoutReader, stdoutWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stdout pipe: %v", err)
+	}
+	defer func() {
+		_ = stdoutReader.Close()
+	}()
+
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stderr pipe: %v", err)
+	}
+	defer func() {
+		_ = stderrReader.Close()
+	}()
+
+	originalStdout, originalStderr := os.Stdout, os.Stderr
+	os.Stdout, os.Stderr = stdoutWriter, stderrWriter
+	defer func() {
+		os.Stdout, os.Stderr = originalStdout, originalStderr
+		_ = stdoutWriter.Close()
+		_ = stderrWriter.Close()
+	}()
+
+	exitCode := run()
+	os.Stdout, os.Stderr = originalStdout, originalStderr
+	if err := stdoutWriter.Close(); err != nil {
+		t.Fatalf("failed to close stdout pipe: %v", err)
+	}
+	if err := stderrWriter.Close(); err != nil {
+		t.Fatalf("failed to close stderr pipe: %v", err)
+	}
+
+	stdout, err := io.ReadAll(stdoutReader)
+	if err != nil {
+		t.Fatalf("failed to read stdout pipe: %v", err)
+	}
+	stderr, err := io.ReadAll(stderrReader)
+	if err != nil {
+		t.Fatalf("failed to read stderr pipe: %v", err)
+	}
+	return exitCode, string(stdout), string(stderr)
+}
+
 func TestCaptureStderrRestoresStderrAfterPanic(t *testing.T) {
 	originalStderr := os.Stderr
 	defer func() {
@@ -600,6 +647,43 @@ func TestCaptureStderrRestoresStderrAfterPanic(t *testing.T) {
 
 	assert.True(t, panicked)
 	assert.Same(t, originalStderr, os.Stderr)
+}
+
+func TestCLI_HelpWritesToStdoutAndExitsSuccessfully(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "long flag", args: []string{"--help"}},
+		{name: "long flag equals true", args: []string{"--help=true"}},
+		{name: "short flag", args: []string{"-h"}},
+		{name: "after command", args: []string{"sbom", "upload", "--help"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exitCode, stdout, stderr := captureOutput(t, func() int {
+				return CLI("1.0", "commit", tt.args)
+			})
+
+			assert.Equal(t, 0, exitCode)
+			assert.Contains(t, stdout, "bifrost CLI (ver: 1.0, commit: commit")
+			assert.Contains(t, stdout, "Usage:")
+			assert.Contains(t, stdout, "-h")
+			assert.Contains(t, stdout, "--help")
+			assert.Empty(t, stderr)
+		})
+	}
+}
+
+func TestCLI_NoArgumentsRemainUsageError(t *testing.T) {
+	exitCode, stdout, stderr := captureOutput(t, func() int {
+		return CLI("1.0", "commit", nil)
+	})
+
+	assert.Equal(t, 2, exitCode)
+	assert.Empty(t, stdout)
+	assert.Contains(t, stderr, "Usage:")
 }
 
 func TestCLI_InvalidCommand(t *testing.T) {
