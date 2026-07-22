@@ -104,7 +104,6 @@ You can also read an SBOM from standard input by using `-` as the path:
 ```bash
 cat /path/to/sbom.json | ./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 sbom upload -
 ```
-```
 You can control retry behavior for transient upload failures:
 
 ```bash
