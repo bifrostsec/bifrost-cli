@@ -51,6 +51,19 @@ func TestCLI_ValidCommand(t *testing.T) {
 	assert.Contains(t, stderr, missingGitMetadataHint)
 }
 
+func TestCLI_VersionFlags(t *testing.T) {
+	for _, flag := range []string{"--version", "-V"} {
+		t.Run(flag, func(t *testing.T) {
+			exitCode, stdout := captureStdout(t, func() int {
+				return CLI("1.2.3", "abc123", []string{flag})
+			})
+
+			assert.Equal(t, 0, exitCode)
+			assert.Equal(t, "bifrost version 1.2.3 (commit abc123)\n", stdout)
+		})
+	}
+}
+
 func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "1.0", r.URL.Query().Get("version"))
@@ -577,6 +590,43 @@ func captureStderr(t *testing.T, run func() int) (int, string) {
 	output, err := io.ReadAll(readPipe)
 	if err != nil {
 		t.Fatalf("failed to read stderr pipe: %v", err)
+	}
+	return exitCode, string(output)
+}
+
+func captureStdout(t *testing.T, run func() int) (int, string) {
+	t.Helper()
+
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("failed to create stdout pipe: %v", err)
+	}
+	defer func() {
+		_ = readPipe.Close()
+	}()
+
+	originalStdout := os.Stdout
+	os.Stdout = writePipe
+	writePipeClosed := false
+	defer func() {
+		os.Stdout = originalStdout
+		if !writePipeClosed {
+			_ = writePipe.Close()
+		}
+	}()
+
+	exitCode := run()
+	os.Stdout = originalStdout
+
+	err = writePipe.Close()
+	writePipeClosed = true
+	if err != nil {
+		t.Fatalf("failed to close stdout pipe: %v", err)
+	}
+
+	output, err := io.ReadAll(readPipe)
+	if err != nil {
+		t.Fatalf("failed to read stdout pipe: %v", err)
 	}
 	return exitCode, string(output)
 }

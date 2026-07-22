@@ -18,6 +18,9 @@ type Task interface {
 func CLI(version, gitCommit string, args []string) int {
 	fl := flag.NewFlagSet("", flag.ContinueOnError)
 	showHelp := fl.Bool("help", false, "show this help and exit")
+	showVersion := false
+	fl.BoolVar(&showVersion, "version", false, "show version and commit, then exit")
+	fl.BoolVar(&showVersion, "V", false, "show version and commit, then exit")
 	fl.Usage = func() {
 		printUsage(fl)
 	}
@@ -26,6 +29,10 @@ func CLI(version, gitCommit string, args []string) int {
 	err := fl.Parse(args)
 	if err != nil {
 		return 2
+	}
+	if showVersion {
+		printVersion(version, gitCommit)
+		return 0
 	}
 	if *showHelp || len(fl.Args()) == 0 {
 		printHeader(version, gitCommit)
@@ -61,6 +68,10 @@ func CLI(version, gitCommit string, args []string) int {
 		return 2
 	}
 	return 0
+}
+
+func printVersion(version, gitCommit string) {
+	_, _ = fmt.Fprintf(os.Stdout, "bifrost version %s (commit %s)\n", version, gitCommit)
 }
 
 func printHeader(version, gitCommit string) {

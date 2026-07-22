@@ -104,7 +104,6 @@ You can also read an SBOM from standard input by using `-` as the path:
 ```bash
 cat /path/to/sbom.json | ./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 sbom upload -
 ```
-
 You can control retry behavior for transient upload failures:
 
 ```bash
@@ -168,6 +167,7 @@ gh api \
 | `--git-repo-path`            | No          |                                    | Git repository path used for automatic Git metadata detection. Defaults to the current directory. |
 | `--git-auto-detect`          | No          | `BIFROST_GIT_AUTO_DETECT`          | Automatically fill missing Git metadata from the current Git repository when available.           |
 | `--help`                     | No          |                                    | Show help and exit.                                                                               |
+| `--version`, `-V`            | No          |                                    | Print the CLI version and build commit, then exit.                                                 |
 
 ## Useful Links
 
