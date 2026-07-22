@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"syscall"
 )
 
 type Task interface {
@@ -17,7 +18,7 @@ type Task interface {
 }
 
 func CLI(version, gitCommit string, args []string) int {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	return runCLI(ctx, version, gitCommit, args)
