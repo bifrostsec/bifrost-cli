@@ -25,16 +25,12 @@ func CLI(version, gitCommit string, args []string) int {
 	}
 	options := Options{}
 	RegisterOptions(fl, &options)
-	if hasHelpFlag(args) {
-		printHelp(os.Stdout, fl, version, gitCommit)
-		return 0
-	}
 	err := fl.Parse(args)
 	if err != nil {
 		return 2
 	}
 	remaining := fl.Args()
-	if *showHelp {
+	if *showHelp || hasHelpFlag(remaining) {
 		printHelp(os.Stdout, fl, version, gitCommit)
 		return 0
 	}

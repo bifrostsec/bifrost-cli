@@ -686,6 +686,31 @@ func TestCLI_NoArgumentsRemainUsageError(t *testing.T) {
 	assert.Contains(t, stderr, "Usage:")
 }
 
+func TestCLI_HelpDoesNotBypassGlobalFlagValidation(t *testing.T) {
+	exitCode, stdout, stderr := captureOutput(t, func() int {
+		return CLI("1.0", "commit", []string{"--badflag", "--help"})
+	})
+
+	assert.Equal(t, 2, exitCode)
+	assert.Empty(t, stdout)
+	assert.Contains(t, stderr, "flag provided but not defined: -badflag")
+}
+
+func TestCLI_HelpLikeStringFlagValueIsNotTreatedAsHelp(t *testing.T) {
+	exitCode, stdout, stderr := captureOutput(t, func() int {
+		return CLI("1.0", "commit", []string{
+			"--service", "-h",
+			"--service-version", "1.0",
+			"--api-key", "test-token",
+			"invalid",
+		})
+	})
+
+	assert.Equal(t, 2, exitCode)
+	assert.Empty(t, stdout)
+	assert.Contains(t, stderr, "Error: Unrecognized command")
+}
+
 func TestCLI_InvalidCommand(t *testing.T) {
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
