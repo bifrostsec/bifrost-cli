@@ -17,20 +17,20 @@ type Task interface {
 }
 
 func CLI(version, gitCommit string, args []string) int {
-	fl := flag.NewFlagSet("", flag.ContinueOnError)
-	showHelp := fl.Bool("help", false, "show this help and exit")
-	fl.BoolVar(showHelp, "h", false, "alias for --help")
+	fl := NewAliasedFlagSet("", flag.ContinueOnError)
+	showHelp := false
+	fl.BoolVar(&showHelp, "help", false, "show this help and exit", "h")
 	fl.Usage = func() {
 		printUsage(os.Stderr, fl)
 	}
 	options := Options{}
-	RegisterOptions(fl, &options)
+	RegisterOptions(fl.FlagSet, &options)
 	err := fl.Parse(args)
 	if err != nil {
 		return 2
 	}
 	remaining := fl.Args()
-	if *showHelp || hasHelpFlag(remaining) {
+	if showHelp || hasHelpFlag(remaining) {
 		printHelp(os.Stdout, fl, version, gitCommit)
 		return 0
 	}
@@ -39,7 +39,7 @@ func CLI(version, gitCommit string, args []string) int {
 		printUsage(os.Stderr, fl)
 		return 2
 	}
-	err = ValidateBaseOptions(fl, &options)
+	err = ValidateBaseOptions(fl.FlagSet, &options)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 		printUsage(os.Stderr, fl)
@@ -78,7 +78,7 @@ func hasHelpFlag(args []string) bool {
 	return false
 }
 
-func printHelp(output io.Writer, fl *flag.FlagSet, version, gitCommit string) {
+func printHelp(output io.Writer, fl *AliasedFlagSet, version, gitCommit string) {
 	printHeader(output, version, gitCommit)
 	printUsage(output, fl)
 }
@@ -87,10 +87,9 @@ func printHeader(output io.Writer, version, gitCommit string) {
 	_, _ = fmt.Fprintf(output, "bifrost CLI (ver: %s, commit: %s, %s)\n\n", version, gitCommit, runtime.Version())
 }
 
-func printUsage(output io.Writer, fl *flag.FlagSet) {
+func printUsage(output io.Writer, fl *AliasedFlagSet) {
 	_, _ = fmt.Fprintf(output, "Usage:\n")
 	_, _ = fmt.Fprintf(output, "  bifrost (options) sbom upload <sbom_path|->\n\n")
 	_, _ = fmt.Fprintf(output, "Options:\n")
-	fl.SetOutput(output)
-	fl.PrintDefaults()
+	fl.PrintDefaults(output)
 }
