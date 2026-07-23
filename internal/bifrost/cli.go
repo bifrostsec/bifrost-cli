@@ -30,7 +30,7 @@ func CLI(version, gitCommit string, args []string) int {
 		return 2
 	}
 	remaining := fl.Args()
-	if showHelp || hasHelpFlag(remaining) {
+	if showHelp {
 		printHelp(os.Stdout, fl, version, gitCommit)
 		return 0
 	}
@@ -67,15 +67,6 @@ func CLI(version, gitCommit string, args []string) int {
 		return 2
 	}
 	return 0
-}
-
-func hasHelpFlag(args []string) bool {
-	for _, arg := range args {
-		if arg == "--help" || arg == "-h" {
-			return true
-		}
-	}
-	return false
 }
 
 func printHelp(output io.Writer, fl *AliasedFlagSet, version, gitCommit string) {

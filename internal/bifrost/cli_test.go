@@ -655,9 +655,10 @@ func TestCLI_HelpWritesToStdoutAndExitsSuccessfully(t *testing.T) {
 		args []string
 	}{
 		{name: "long flag", args: []string{"--help"}},
+		{name: "single-dash long flag", args: []string{"-help"}},
 		{name: "long flag equals true", args: []string{"--help=true"}},
 		{name: "short flag", args: []string{"-h"}},
-		{name: "after command", args: []string{"sbom", "upload", "--help"}},
+		{name: "double-dash short flag", args: []string{"--h"}},
 	}
 
 	for _, tt := range tests {
@@ -695,6 +696,24 @@ func TestCLI_HelpDoesNotBypassGlobalFlagValidation(t *testing.T) {
 	assert.Equal(t, 2, exitCode)
 	assert.Empty(t, stdout)
 	assert.Contains(t, stderr, "flag provided but not defined: -badflag")
+}
+
+func TestCLI_HelpAfterSubcommandIsNotRecognized(t *testing.T) {
+	// flag.Parse stops at the first non-flag argument (the subcommand), so
+	// --help appearing after it is never seen as a flag — it's treated as
+	// the literal (here, nonexistent) sbom path, not as a help request.
+	exitCode, stdout, stderr := captureOutput(t, func() int {
+		return CLI("1.0", "commit", []string{
+			"--service=test-service",
+			"--service-version=1.0",
+			"--api-key=test-token",
+			"sbom", "upload", "--help",
+		})
+	})
+
+	assert.Equal(t, 2, exitCode)
+	assert.Empty(t, stdout)
+	assert.NotContains(t, stderr, "show this help and exit")
 }
 
 func TestCLI_HelpLikeStringFlagValueIsNotTreatedAsHelp(t *testing.T) {
