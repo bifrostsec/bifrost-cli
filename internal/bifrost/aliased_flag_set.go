@@ -84,7 +84,7 @@ func printFlagUsage(output io.Writer, name string, f *flag.Flag) {
 func hasDefaultValue(f *flag.Flag) bool {
 	valueType := reflect.TypeOf(f.Value)
 	zeroValue := reflect.Zero(valueType)
-	if valueType.Kind() == reflect.Ptr {
+	if valueType.Kind() == reflect.Pointer {
 		zeroValue = reflect.New(valueType.Elem())
 	}
 
