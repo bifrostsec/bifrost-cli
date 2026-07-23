@@ -96,6 +96,9 @@ func (a *api) uploadSBOM(ctx context.Context, service string, serviceVersion str
 		if err == nil {
 			return nil
 		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if attempt == a.cfg.RetryAttempts || !shouldRetry(err) {
 			return err
 		}
@@ -219,7 +222,7 @@ func (e *requestError) Unwrap() error {
 }
 
 func shouldRetry(err error) bool {
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.Canceled) {
 		return false
 	}
 	var uploadErr *uploadError
