@@ -162,6 +162,7 @@ gh api \
 | `--server-url`               | No          | `SERVER_URL`, `BIFROST_SERVER_URL` | URL to the bifrost server.                                                                        |
 | `--retry-attempts`           | No          |                                    | Number of retry attempts for transient upload failures.                                           |
 | `--retry-delay`              | No          |                                    | Delay between upload retry attempts.                                                              |
+| `--http-timeout`             | No          |                                    | Maximum duration to wait for an HTTP upload request. Defaults to 30 seconds.                     |
 | `--git-branch`               | No          |                                    | Git branch name to attach to the upload.                                                          |
 | `--git-commit-sha`           | No          |                                    | Git commit SHA to attach to the upload.                                                           |
 | `--git-origin`               | No          |                                    | Git origin URL to attach to the upload.                                                           |

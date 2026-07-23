@@ -8,7 +8,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime"
+	"syscall"
 )
 
 type Task interface {
@@ -16,6 +18,13 @@ type Task interface {
 }
 
 func CLI(version, gitCommit string, args []string) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	return runCLI(ctx, version, gitCommit, args)
+}
+
+func runCLI(ctx context.Context, version, gitCommit string, args []string) int {
 	fl := flag.NewFlagSet("", flag.ContinueOnError)
 	showHelp := fl.Bool("help", false, "show this help and exit")
 	fl.Usage = func() {
@@ -55,7 +64,7 @@ func CLI(version, gitCommit string, args []string) int {
 		return 2
 	}
 
-	err = task.Run(context.Background())
+	err = task.Run(ctx)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		return 2

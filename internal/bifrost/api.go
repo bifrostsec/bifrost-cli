@@ -18,6 +18,7 @@ const (
 	DefaultServerURL     = "https://portal.bifrostsec.com"
 	DefaultRetryAttempts = 3
 	DefaultRetryDelay    = 2 * time.Second
+	DefaultHTTPTimeout   = 30 * time.Second
 	userAgentProduct     = "bifrost-cli"
 )
 
@@ -30,6 +31,7 @@ type APIConfig struct {
 	Token         string
 	RetryAttempts int
 	RetryDelay    time.Duration
+	HTTPTimeout   time.Duration
 	RetryOutput   io.Writer
 	GitBranch     string
 	GitCommitSHA  string
@@ -50,11 +52,14 @@ func NewAPI(cfg APIConfig) API {
 	if cfg.RetryDelay < 0 {
 		cfg.RetryDelay = 0
 	}
+	if cfg.HTTPTimeout <= 0 {
+		cfg.HTTPTimeout = DefaultHTTPTimeout
+	}
 	if cfg.RetryOutput == nil {
 		cfg.RetryOutput = os.Stderr
 	}
 	return &api{
-		client: http.Client{},
+		client: http.Client{Timeout: cfg.HTTPTimeout},
 		cfg:    cfg,
 	}
 }
@@ -90,6 +95,9 @@ func (a *api) uploadSBOM(ctx context.Context, service string, serviceVersion str
 		err = a.uploadSBOMOnce(ctx, service, serviceVersion, sourceLabel, openBody)
 		if err == nil {
 			return nil
+		}
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		if attempt == a.cfg.RetryAttempts || !shouldRetry(err) {
 			return err
@@ -214,7 +222,7 @@ func (e *requestError) Unwrap() error {
 }
 
 func shouldRetry(err error) bool {
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.Canceled) {
 		return false
 	}
 	var uploadErr *uploadError

@@ -301,6 +301,70 @@ func TestAPI_UploadSBOM_DoesNotRetryClientFailure(t *testing.T) {
 	assert.EqualValues(t, 1, attempts.Load())
 }
 
+func TestAPI_UploadSBOM_RetriesHTTPTimeout(t *testing.T) {
+	var attempts atomic.Int32
+	releaseFirstRequest := make(chan struct{})
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if attempts.Add(1) == 1 {
+			select {
+			case <-r.Context().Done():
+			case <-releaseFirstRequest:
+			}
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+	defer close(releaseFirstRequest)
+
+	path := "test-sbom.json"
+	assert.NoError(t, os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644))
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	cfg := newTestAPIConfig(httpServer.URL)
+	cfg.HTTPTimeout = 100 * time.Millisecond
+	cfg.RetryAttempts = 1
+	cfg.RetryDelay = time.Millisecond
+	api := NewAPI(cfg)
+
+	err := api.UploadSBOMFile(context.Background(), "test-service", "test-version", path)
+	assert.NoError(t, err)
+	assert.EqualValues(t, 2, attempts.Load())
+}
+
+func TestAPI_UploadSBOM_DoesNotRetryExpiredContext(t *testing.T) {
+	var attempts atomic.Int32
+	releaseRequest := make(chan struct{})
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		select {
+		case <-r.Context().Done():
+		case <-releaseRequest:
+		}
+	}))
+	defer httpServer.Close()
+	defer close(releaseRequest)
+
+	path := "test-sbom.json"
+	assert.NoError(t, os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644))
+	defer func() {
+		_ = os.Remove(path)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	cfg := newTestAPIConfig(httpServer.URL)
+	cfg.HTTPTimeout = time.Second
+	cfg.RetryAttempts = 1
+	api := NewAPI(cfg)
+
+	err := api.UploadSBOMFile(ctx, "test-service", "test-version", path)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.EqualValues(t, 1, attempts.Load())
+}
+
 func TestAPI_NewAPI_NormalizesNegativeRetryConfiguration(t *testing.T) {
 	client := NewAPI(APIConfig{
 		ServerURL:     "https://example.com",
@@ -312,16 +376,29 @@ func TestAPI_NewAPI_NormalizesNegativeRetryConfiguration(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, 0, internalAPI.cfg.RetryAttempts)
 	assert.Equal(t, time.Duration(0), internalAPI.cfg.RetryDelay)
+	assert.Equal(t, DefaultHTTPTimeout, internalAPI.cfg.HTTPTimeout)
+	assert.Equal(t, DefaultHTTPTimeout, internalAPI.client.Timeout)
+}
+
+func TestAPI_NewAPI_UsesConfiguredHTTPTimeout(t *testing.T) {
+	client := NewAPI(APIConfig{
+		ServerURL:   "https://example.com",
+		Token:       "test-token",
+		HTTPTimeout: 5 * time.Second,
+	})
+	internalAPI, ok := client.(*api)
+	assert.True(t, ok)
+	assert.Equal(t, 5*time.Second, internalAPI.client.Timeout)
 }
 
 func TestShouldRetry_ContextCancellationIsNotRetryable(t *testing.T) {
 	assert.False(t, shouldRetry(&requestError{cause: context.Canceled}))
-	assert.False(t, shouldRetry(&requestError{cause: context.DeadlineExceeded}))
+	assert.True(t, shouldRetry(&requestError{cause: context.DeadlineExceeded}))
 }
 
 func TestShouldRetry_WrappedContextCancellationIsNotRetryable(t *testing.T) {
 	assert.False(t, shouldRetry(&requestError{cause: fmt.Errorf("request failed: %w", context.Canceled)}))
-	assert.False(t, shouldRetry(&requestError{cause: fmt.Errorf("request failed: %w", context.DeadlineExceeded)}))
+	assert.True(t, shouldRetry(&requestError{cause: fmt.Errorf("request failed: %w", context.DeadlineExceeded)}))
 }
 
 func TestShouldRetry_NonContextRequestErrorIsRetryable(t *testing.T) {
