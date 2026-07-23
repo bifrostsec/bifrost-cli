@@ -5,6 +5,7 @@ package bifrost
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -676,4 +677,31 @@ func TestCLI_InvalidRetryDelay(t *testing.T) {
 
 	exitCode := CLI("1.0", "commit", args)
 	assert.Equal(t, 2, exitCode)
+}
+
+func TestCLI_InvalidHTTPTimeout(t *testing.T) {
+	for _, timeout := range []string{"0s", "-1s"} {
+		t.Run(timeout, func(t *testing.T) {
+			args := []string{
+				"--server-url=https://portal.bifrostsec.com",
+				"--service=test-service",
+				"--service-version=1.0",
+				"--api-key=test-token",
+				"--http-timeout=" + timeout,
+				"sbom", "upload", "test-sbom.json",
+			}
+
+			exitCode := CLI("1.0", "commit", args)
+			assert.Equal(t, 2, exitCode)
+		})
+	}
+}
+
+func TestRegisterOptions_ParsesHTTPTimeout(t *testing.T) {
+	fl := flag.NewFlagSet("", flag.ContinueOnError)
+	options := Options{}
+	RegisterOptions(fl, &options)
+
+	assert.NoError(t, fl.Parse([]string{"--http-timeout=5s"}))
+	assert.Equal(t, 5*time.Second, options.httpTimeout)
 }
