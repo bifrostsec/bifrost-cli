@@ -8,24 +8,21 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 )
 
 type AliasedFlagSet struct {
 	*flag.FlagSet
-	aliases map[string]flagAlias
-}
-
-type flagAlias struct {
-	primary string
-	display string
+	aliasGroups map[string][]string
+	aliases     []string
 }
 
 func NewAliasedFlagSet(name string, errorHandling flag.ErrorHandling) *AliasedFlagSet {
 	return &AliasedFlagSet{
-		FlagSet: flag.NewFlagSet(name, errorHandling),
-		aliases: make(map[string]flagAlias),
+		FlagSet:     flag.NewFlagSet(name, errorHandling),
+		aliasGroups: make(map[string][]string),
 	}
 }
 
@@ -35,27 +32,23 @@ func (fl *AliasedFlagSet) BoolVar(value *bool, name string, defaultValue bool, u
 		return
 	}
 
-	aliasGroup := flagAlias{
-		primary: name,
-		display: formatFlagNames(append([]string{name}, aliases...)),
-	}
-	fl.aliases[name] = aliasGroup
+	fl.aliasGroups[name] = aliases
 	for _, alias := range aliases {
-		fl.aliases[alias] = aliasGroup
+		fl.aliases = append(fl.aliases, alias)
 		fl.FlagSet.BoolVar(value, alias, defaultValue, usage)
 	}
 }
 
 func (fl *AliasedFlagSet) PrintDefaults(output io.Writer) {
 	fl.VisitAll(func(f *flag.Flag) {
-		alias, isAliased := fl.aliases[f.Name]
-		if isAliased && alias.primary != f.Name {
+		if slices.Contains(fl.aliases, f.Name) {
 			return
 		}
 
+		flagAliases := fl.aliasGroups[f.Name]
 		name := "-" + f.Name
-		if isAliased {
-			name = alias.display
+		if len(flagAliases) > 0 {
+			name = formatFlagNames(append([]string{f.Name}, flagAliases...))
 		}
 		printFlagUsage(output, name, f)
 	})
