@@ -171,7 +171,7 @@ gh api \
 | `--git-commit-sha`           | No          |                                    | Git commit SHA to attach to the upload.                                                           |
 | `--git-origin`               | No          |                                    | Git origin URL to attach to the upload.                                                           |
 | `--git-repo-path`            | No          | `BIFROST_GIT_REPO_PATH`            | Git repository path used for automatic Git metadata detection.                                    |
-| `--help`                     | No          |                                    | Show help and exit.                                                                               |
+| `--help`, `-h`               | No          |                                    | Show help and exit.                                                                               |
 
 ## Useful Links
 
