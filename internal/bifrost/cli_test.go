@@ -52,13 +52,14 @@ func TestCLI_ValidCommand(t *testing.T) {
 }
 
 func TestCLI_HelpMarksDeprecatedGitAutoDetectFlag(t *testing.T) {
-	exitCode, stderr := captureStderr(t, func() int {
+	exitCode, stdout, stderr := captureOutput(t, func() int {
 		return CLI("1.0", "commit", []string{"--help"})
 	})
 
-	assert.Equal(t, 2, exitCode)
-	assert.Contains(t, stderr, gitAutoDetectFlag)
-	assert.Contains(t, stderr, "DEPRECATED: use --git-repo-path=.")
+	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stdout, gitAutoDetectFlag)
+	assert.Contains(t, stdout, "DEPRECATED: use --git-repo-path=.")
+	assert.Empty(t, stderr)
 }
 
 func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
