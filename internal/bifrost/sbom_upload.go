@@ -144,7 +144,7 @@ func (t sbomUploadTask) uploadStdinSBOM(ctx context.Context, api API) error {
 		_ = os.Remove(tmpPath)
 	}()
 
-	if err := cancelableCopyStdin(ctx, tmpFile, os.Stdin); err != nil {
+	if err := copyStdinWithContext(ctx, tmpFile, os.Stdin); err != nil {
 		_ = tmpFile.Close()
 		return fmt.Errorf("failed to read SBOM from stdin: %w", err)
 	}
@@ -155,19 +155,20 @@ func (t sbomUploadTask) uploadStdinSBOM(ctx context.Context, api API) error {
 	return api.UploadSBOMFile(ctx, t.service, t.serviceVersion, tmpPath)
 }
 
-func cancelableCopyStdin(ctx context.Context, destination io.Writer, stdin *os.File) error {
-	copyDone := make(chan error, 1)
+// copyStdinWithContext copies stdin into destination and returns promptly when
+// ctx is cancelled. ctx is the process signal context (Ctrl+C or SIGTERM), so a
+// cancelled copy always means the process is terminating; the io.Copy goroutine
+// outlives cancellation only until the process exits moments later.
+func copyStdinWithContext(ctx context.Context, destination io.Writer, stdin *os.File) error {
+	done := make(chan error, 1)
 	go func() {
 		_, err := io.Copy(destination, stdin)
-		copyDone <- err
+		done <- err
 	}()
-
 	select {
-	case err := <-copyDone:
+	case err := <-done:
 		return err
 	case <-ctx.Done():
-		_ = stdin.Close()
-		<-copyDone
 		return ctx.Err()
 	}
 }
