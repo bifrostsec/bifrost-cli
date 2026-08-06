@@ -167,7 +167,7 @@ gh api \
 | `--git-origin`               | No          |                                    | Git origin URL to attach to the upload.                                                           |
 | `--git-repo-path`            | No          |                                    | Git repository path used for automatic Git metadata detection. Defaults to the current directory. |
 | `--git-auto-detect`          | No          | `BIFROST_GIT_AUTO_DETECT`          | Automatically fill missing Git metadata from the current Git repository when available.           |
-| `--help`                     | No          |                                    | Show help and exit.                                                                               |
+| `--help`, `-h`               | No          |                                    | Show help and exit.                                                                               |
 
 ## Useful Links
 
