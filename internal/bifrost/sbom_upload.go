@@ -146,10 +146,6 @@ func (t sbomUploadTask) uploadStdinSBOM(ctx context.Context, api API) error {
 	return api.UploadSBOMFile(ctx, t.service, t.serviceVersion, tmpPath)
 }
 
-// copyStdinWithContext copies stdin into destination and returns promptly when
-// ctx is cancelled. ctx is the process signal context (Ctrl+C or SIGTERM), so a
-// cancelled copy always means the process is terminating; the io.Copy goroutine
-// outlives cancellation only until the process exits moments later.
 func copyStdinWithContext(ctx context.Context, destination io.Writer, stdin *os.File) error {
 	done := make(chan error, 1)
 	go func() {
