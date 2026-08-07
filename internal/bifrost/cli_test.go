@@ -49,7 +49,18 @@ func TestCLI_ValidCommand(t *testing.T) {
 		return CLI("1.0", "commit", args)
 	})
 	assert.Equal(t, 0, exitCode)
-	assert.Contains(t, stderr, missingGitMetadataHint)
+	assert.Empty(t, stderr)
+}
+
+func TestCLI_HelpMarksDeprecatedGitAutoDetectFlag(t *testing.T) {
+	exitCode, stdout, stderr := captureOutput(t, func() int {
+		return CLI("1.0", "commit", []string{"--help"})
+	})
+
+	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stdout, gitAutoDetectFlag)
+	assert.Contains(t, stdout, "DEPRECATED: use --git-repo-path=.")
+	assert.Empty(t, stderr)
 }
 
 func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
@@ -84,12 +95,46 @@ func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
 		return CLI("1.0", "commit", args)
 	})
 	assert.Equal(t, 0, exitCode)
-	assert.NotContains(t, stderr, missingGitMetadataHint)
+	assert.Empty(t, stderr)
 }
 
-func TestCLI_ValidCommandWithGitAutoDetectEnabledByFlag(t *testing.T) {
+func TestCLI_ValidCommandWithGitRepoPathCurrentDirectory(t *testing.T) {
 	branch := "feature/auto-git-metadata"
 	origin := "https://github.com/example/auto-project.git"
+	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
+	chdir(t, repoDir)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, branch, r.URL.Query().Get("git_branch"))
+		assert.Equal(t, commitSHA, r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, origin, r.URL.Query().Get("git_origin"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--git-repo-path=.",
+		"sbom", "upload", path,
+	}
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
+	assert.Equal(t, 0, exitCode)
+	assertGitMetadataDetection(t, stderr, ".", branch, commitSHA, origin)
+}
+
+func TestCLI_DeprecatedGitAutoDetectUsesCurrentDirectory(t *testing.T) {
+	branch := "feature/deprecated-auto-git-metadata"
+	origin := "https://github.com/example/deprecated-auto-project.git"
 	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
 	chdir(t, repoDir)
 
@@ -118,11 +163,64 @@ func TestCLI_ValidCommandWithGitAutoDetectEnabledByFlag(t *testing.T) {
 		return CLI("1.0", "commit", args)
 	})
 	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stderr, gitAutoDetectDeprecationWarning)
 	assertGitMetadataDetection(t, stderr, ".", branch, commitSHA, origin)
-	assert.NotContains(t, stderr, missingGitMetadataHint)
 }
 
-func TestCLI_ValidCommandWithGitAutoDetectFromGitRepoPath(t *testing.T) {
+func TestCLI_DeprecatedGitAutoDetectEnvironmentUsesCurrentDirectory(t *testing.T) {
+	branch := "feature/deprecated-auto-git-metadata-environment"
+	origin := "https://github.com/example/deprecated-auto-environment-project.git"
+	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
+	chdir(t, repoDir)
+	t.Setenv(gitAutoDetectEnvironmentVariable, "true")
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, branch, r.URL.Query().Get("git_branch"))
+		assert.Equal(t, commitSHA, r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, origin, r.URL.Query().Get("git_origin"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := "test-sbom.json"
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"sbom", "upload", path,
+	}
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
+	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stderr, gitAutoDetectDeprecationWarning)
+	assertGitMetadataDetection(t, stderr, ".", branch, commitSHA, origin)
+}
+
+func TestCLI_InvalidDeprecatedGitAutoDetectEnvironmentValue(t *testing.T) {
+	t.Setenv(gitAutoDetectEnvironmentVariable, "not-a-boolean")
+
+	args := []string{
+		"--server-url=https://portal.bifrostsec.com",
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"sbom", "upload", "test-sbom.json",
+	}
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
+	assert.Equal(t, 2, exitCode)
+	assert.Contains(t, stderr, "BIFROST_GIT_AUTO_DETECT must be a boolean")
+}
+
+func TestCLI_ValidCommandWithAbsoluteGitRepoPath(t *testing.T) {
 	branch := "feature/auto-git-metadata-path"
 	origin := "https://github.com/example/auto-project-path.git"
 	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
@@ -145,7 +243,6 @@ func TestCLI_ValidCommandWithGitAutoDetectFromGitRepoPath(t *testing.T) {
 		"--service=test-service",
 		"--service-version=1.0",
 		"--api-key=test-token",
-		"--git-auto-detect",
 		fmt.Sprintf("--git-repo-path=%s", repoDir),
 		"sbom", "upload", path,
 	}
@@ -155,10 +252,9 @@ func TestCLI_ValidCommandWithGitAutoDetectFromGitRepoPath(t *testing.T) {
 	})
 	assert.Equal(t, 0, exitCode)
 	assertGitMetadataDetection(t, stderr, repoDir, branch, commitSHA, origin)
-	assert.NotContains(t, stderr, missingGitMetadataHint)
 }
 
-func TestCLI_ValidCommandInGitRepoWithoutGitAutoDetectOmitsGitMetadata(t *testing.T) {
+func TestCLI_ValidCommandInGitRepoWithoutGitRepoPathOmitsGitMetadata(t *testing.T) {
 	branch := "feature/default-no-auto-git-metadata"
 	origin := "https://github.com/example/default-no-auto-project.git"
 	repoDir, _ := createTestGitRepo(t, branch, origin)
@@ -186,15 +282,18 @@ func TestCLI_ValidCommandInGitRepoWithoutGitAutoDetectOmitsGitMetadata(t *testin
 	assert.Equal(t, 0, exitCode)
 }
 
-func TestCLI_ExplicitGitAutoDetectFlagOverridesEnvironment(t *testing.T) {
-	t.Setenv("BIFROST_GIT_AUTO_DETECT", "true")
-	branch := "feature/flag-overrides-env"
-	origin := "https://github.com/example/flag-overrides-env-project.git"
-	repoDir, _ := createTestGitRepo(t, branch, origin)
-	chdir(t, repoDir)
+func TestCLI_ExplicitGitRepoPathOverridesEnvironment(t *testing.T) {
+	envRepoDir, _ := createTestGitRepo(t, "env-branch", "https://github.com/example/env-project.git")
+	branch := "flag-branch"
+	origin := "https://github.com/example/flag-project.git"
+	flagRepoDir, commitSHA := createTestGitRepo(t, branch, origin)
+	t.Setenv("BIFROST_GIT_REPO_PATH", envRepoDir)
+	t.Setenv(gitAutoDetectEnvironmentVariable, "not-a-boolean")
 
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assertNoGitMetadataQuery(t, r)
+		assert.Equal(t, branch, r.URL.Query().Get("git_branch"))
+		assert.Equal(t, commitSHA, r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, origin, r.URL.Query().Get("git_origin"))
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer httpServer.Close()
@@ -208,7 +307,7 @@ func TestCLI_ExplicitGitAutoDetectFlagOverridesEnvironment(t *testing.T) {
 		"--service=test-service",
 		"--service-version=1.0",
 		"--api-key=test-token",
-		"--git-auto-detect=false",
+		fmt.Sprintf("--git-repo-path=%s", flagRepoDir),
 		"sbom", "upload", path,
 	}
 
@@ -216,33 +315,14 @@ func TestCLI_ExplicitGitAutoDetectFlagOverridesEnvironment(t *testing.T) {
 		return CLI("1.0", "commit", args)
 	})
 	assert.Equal(t, 0, exitCode)
-	assert.Contains(t, stderr, missingGitMetadataHint)
+	assertGitMetadataDetection(t, stderr, flagRepoDir, branch, commitSHA, origin)
 }
 
-func TestCLI_InvalidGitAutoDetectEnvironmentValue(t *testing.T) {
-	t.Setenv("BIFROST_GIT_AUTO_DETECT", "notabool")
-
-	args := []string{
-		"--server-url=https://portal.bifrostsec.com",
-		"--service=test-service",
-		"--service-version=1.0",
-		"--api-key=test-token",
-		"sbom", "upload", "test-sbom.json",
-	}
-
-	exitCode, stderr := captureStderr(t, func() int {
-		return CLI("1.0", "commit", args)
-	})
-	assert.Equal(t, 2, exitCode)
-	assert.Contains(t, stderr, "BIFROST_GIT_AUTO_DETECT must be a boolean")
-}
-
-func TestCLI_ValidCommandWithGitAutoDetectEnabledByEnvironment(t *testing.T) {
-	t.Setenv("BIFROST_GIT_AUTO_DETECT", "true")
+func TestCLI_ValidCommandWithGitRepoPathFromEnvironment(t *testing.T) {
 	branch := "feature/env-enabled-auto-git-metadata"
 	origin := "https://github.com/example/env-enabled-project.git"
 	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
-	chdir(t, repoDir)
+	t.Setenv("BIFROST_GIT_REPO_PATH", repoDir)
 
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, branch, r.URL.Query().Get("git_branch"))
@@ -264,11 +344,50 @@ func TestCLI_ValidCommandWithGitAutoDetectEnabledByEnvironment(t *testing.T) {
 		"sbom", "upload", path,
 	}
 
-	exitCode := CLI("1.0", "commit", args)
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
 	assert.Equal(t, 0, exitCode)
+	assertGitMetadataDetection(t, stderr, repoDir, branch, commitSHA, origin)
 }
 
-func TestCLI_ValidCommandWithGitAutoDetectOutsideGitRepoPrintsError(t *testing.T) {
+func TestCLI_ValidCommandWithRelativeGitRepoPath(t *testing.T) {
+	branch := "feature/relative-git-metadata"
+	origin := "https://github.com/example/relative-project.git"
+	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
+	parentDir := filepath.Dir(repoDir)
+	relativeRepoPath := filepath.Base(repoDir)
+	chdir(t, parentDir)
+
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, branch, r.URL.Query().Get("git_branch"))
+		assert.Equal(t, commitSHA, r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, origin, r.URL.Query().Get("git_origin"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+
+	path := filepath.Join(t.TempDir(), "test-sbom.json")
+	err := os.WriteFile(path, []byte(`{"name":"test","version":"1.0"}`), 0644)
+	assert.NoError(t, err)
+
+	args := []string{
+		fmt.Sprintf("--server-url=%s", httpServer.URL),
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		fmt.Sprintf("--git-repo-path=%s", relativeRepoPath),
+		"sbom", "upload", path,
+	}
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
+	assert.Equal(t, 0, exitCode)
+	assertGitMetadataDetection(t, stderr, relativeRepoPath, branch, commitSHA, origin)
+}
+
+func TestCLI_ValidCommandWithGitRepoPathOutsideGitRepoPrintsError(t *testing.T) {
 	tempDir := t.TempDir()
 	chdir(t, tempDir)
 
@@ -287,7 +406,7 @@ func TestCLI_ValidCommandWithGitAutoDetectOutsideGitRepoPrintsError(t *testing.T
 		"--service=test-service",
 		"--service-version=1.0",
 		"--api-key=test-token",
-		"--git-auto-detect",
+		"--git-repo-path=.",
 		"sbom", "upload", path,
 	}
 
@@ -298,7 +417,6 @@ func TestCLI_ValidCommandWithGitAutoDetectOutsideGitRepoPrintsError(t *testing.T
 	assertGitMetadataDetection(t, stderr, ".", "", "", "")
 	assert.Contains(t, stderr, "  error=\"check git work tree:")
 	assert.Contains(t, stderr, "git -C \\\".\\\" rev-parse --is-inside-work-tree")
-	assert.Contains(t, stderr, missingGitMetadataHint)
 }
 
 func TestCLI_ValidCommandWithImage(t *testing.T) {

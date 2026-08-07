@@ -48,6 +48,10 @@ func runCLI(ctx context.Context, version, gitCommit string, args []string) int {
 		printUsage(os.Stderr, fl)
 		return 2
 	}
+	if isDeprecatedGitAutoDetectSet(fl.FlagSet, &options) {
+		_, _ = fmt.Fprint(os.Stderr, gitAutoDetectDeprecationWarning)
+	}
+
 	err = ValidateBaseOptions(fl.FlagSet, &options)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
