@@ -158,21 +158,22 @@ gh api \
 
 ## Options
 
-| Option                       | Required    | Environment variable(s)            | Description                                                                                       |
-|------------------------------|-------------|------------------------------------|---------------------------------------------------------------------------------------------------|
-| `--api-key`                  | Yes         | `BIFROST_API_KEY`                  | Bifrost API key used for authentication.                                                          |
-| `--service`                  | Yes         | `SERVICE`                          | Name of the service.                                                                              |
-| `--service-version`          | Conditional | `SERVICE_VERSION`                  | Service version for the uploaded SBOM. Required unless an image is provided.                      |
-| `--image`                    | Conditional | `IMAGE`                            | Container image reference for the uploaded SBOM. Required unless a service version is provided.   |
-| `--server-url`               | No          | `SERVER_URL`, `BIFROST_SERVER_URL` | URL to the bifrost server.                                                                        |
-| `--retry-attempts`           | No          |                                    | Number of retry attempts for transient upload failures.                                           |
-| `--retry-delay`              | No          |                                    | Delay between upload retry attempts.                                                              |
-| `--http-timeout`             | No          |                                    | Maximum duration to wait for an HTTP upload request. Defaults to 30 seconds.                     |
-| `--git-branch`               | No          |                                    | Git branch name to attach to the upload.                                                          |
-| `--git-commit-sha`           | No          |                                    | Git commit SHA to attach to the upload.                                                           |
-| `--git-origin`               | No          |                                    | Git origin URL to attach to the upload.                                                           |
-| `--git-repo-path`            | No          | `BIFROST_GIT_REPO_PATH`            | Git repository path used for automatic Git metadata detection.                                    |
-| `--help`, `-h`               | No          |                                    | Show help and exit.                                                                               |
+| Option              | Required    | Environment variable(s)            | Description                                                                                     |
+|---------------------|-------------|------------------------------------|-------------------------------------------------------------------------------------------------|
+| `--api-key`         | Yes         | `BIFROST_API_KEY`                  | Bifrost API key used for authentication.                                                        |
+| `--service`         | Yes         | `SERVICE`                          | Name of the service.                                                                            |
+| `--service-version` | Conditional | `SERVICE_VERSION`                  | Service version for the uploaded SBOM. Required unless an image is provided.                    |
+| `--image`           | Conditional | `IMAGE`                            | Container image reference for the uploaded SBOM. Required unless a service version is provided. |
+| `--server-url`      | No          | `SERVER_URL`, `BIFROST_SERVER_URL` | URL to the bifrost server.                                                                      |
+| `--retry-attempts`  | No          |                                    | Number of retry attempts for transient upload failures.                                         |
+| `--retry-delay`     | No          |                                    | Delay between upload retry attempts.                                                            |
+| `--http-timeout`    | No          |                                    | Maximum duration to wait for an HTTP upload request. Defaults to 30 seconds.                    |
+| `--git-branch`      | No          |                                    | Git branch name to attach to the upload.                                                        |
+| `--git-commit-sha`  | No          |                                    | Git commit SHA to attach to the upload.                                                         |
+| `--git-origin`      | No          |                                    | Git origin URL to attach to the upload.                                                         |
+| `--git-repo-path`   | No          | `BIFROST_GIT_REPO_PATH`            | Git repository path used for automatic Git metadata detection.                                  |
+| `--version`, `-V`   | No          |                                    | Print the CLI version and build commit, then exit.                                              |
+| `--help`, `-h`      | No          |                                    | Show help and exit.                                                                             |
 
 ## Useful Links
 

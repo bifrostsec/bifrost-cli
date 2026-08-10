@@ -63,6 +63,20 @@ func TestCLI_HelpMarksDeprecatedGitAutoDetectFlag(t *testing.T) {
 	assert.Empty(t, stderr)
 }
 
+func TestCLI_VersionFlags(t *testing.T) {
+	for _, flag := range []string{"--version", "-V"} {
+		t.Run(flag, func(t *testing.T) {
+			exitCode, stdout, stderr := captureOutput(t, func() int {
+				return CLI("1.2.3", "abc123", []string{flag})
+			})
+
+			assert.Equal(t, 0, exitCode)
+			assert.Equal(t, "bifrost version 1.2.3 (commit abc123)\n", stdout)
+			assert.Empty(t, stderr)
+		})
+	}
+}
+
 func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "1.0", r.URL.Query().Get("version"))

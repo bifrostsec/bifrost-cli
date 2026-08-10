@@ -27,8 +27,13 @@ func CLI(version, gitCommit string, args []string) int {
 
 func runCLI(ctx context.Context, version, gitCommit string, args []string) int {
 	fl := NewAliasedFlagSet("", flag.ContinueOnError)
-	showHelp := false
+
+	var showHelp bool
 	fl.BoolVar(&showHelp, "help", false, "show this help and exit", "h")
+
+	var showVersion bool
+	fl.BoolVar(&showVersion, "version", false, "print the CLI version and build commit, then exit", "V")
+
 	fl.Usage = func() {
 		printUsage(os.Stderr, fl)
 	}
@@ -41,6 +46,10 @@ func runCLI(ctx context.Context, version, gitCommit string, args []string) int {
 	remaining := fl.Args()
 	if showHelp {
 		printHelp(os.Stdout, fl, version, gitCommit)
+		return 0
+	}
+	if showVersion {
+		printVersion(os.Stdout, version, gitCommit)
 		return 0
 	}
 	if len(remaining) == 0 {
@@ -89,6 +98,10 @@ func printHelp(output io.Writer, fl *AliasedFlagSet, version, gitCommit string) 
 
 func printHeader(output io.Writer, version, gitCommit string) {
 	_, _ = fmt.Fprintf(output, "bifrost CLI (ver: %s, commit: %s, %s)\n\n", version, gitCommit, runtime.Version())
+}
+
+func printVersion(output io.Writer, version, gitCommit string) {
+	_, _ = fmt.Fprintf(output, "bifrost version %s (commit %s)\n", version, gitCommit)
 }
 
 func printUsage(output io.Writer, fl *AliasedFlagSet) {
