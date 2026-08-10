@@ -11,6 +11,7 @@ your build pipeline.
 bifrost helps teams understand and reduce real workload risk with runtime security for containerized applications.
 
 Learn more:
+
 - Website: [bifrostsec.com](https://bifrostsec.com/)
 - Documentation: [docs.bifrostsec.com](https://docs.bifrostsec.com/)
 - Portal: [portal.bifrostsec.com](https://portal.bifrostsec.com/)
@@ -104,6 +105,7 @@ You can also read an SBOM from standard input by using `-` as the path:
 ```bash
 cat /path/to/sbom.json | ./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 sbom upload -
 ```
+
 You can control retry behavior for transient upload failures:
 
 ```bash
@@ -116,23 +118,28 @@ Git metadata is optional. You can attach it manually:
 ./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 --git-branch=main --git-commit-sha=abc123 --git-origin=https://github.com/example/project.git sbom upload /path/to/sbom.json
 ```
 
-You can also enable automatic Git metadata detection. When enabled, bifrost fills in missing Git metadata from the
-current Git repository when those values are available:
+You can also automatically fill in missing Git metadata by providing the repository path. Use `.` for the current
+directory:
 
 ```bash
-./bifrost --service=my-service --service-version=1.2.3 --git-auto-detect sbom upload /path/to/sbom.json
+./bifrost --service=my-service --service-version=1.2.3 --git-repo-path=. sbom upload /path/to/sbom.json
 ```
 
-To detect metadata from a specific path:
+The path can be absolute or relative to the current directory:
 
 ```bash
-./bifrost --service=my-service --service-version=1.2.3 --git-auto-detect --git-repo-path=/path/to/repo sbom upload /path/to/sbom.json
+./bifrost --service=my-service --service-version=1.2.3 --git-repo-path=/path/to/repo sbom upload /path/to/sbom.json
 ```
 
-You can enable automatic Git metadata detection with:
+The repository path can also be exported as an environment variable:
 
-- The `BIFROST_GIT_AUTO_DETECT=true` environment variable
-- The `--git-auto-detect` flag
+```bash
+export BIFROST_GIT_REPO_PATH=.
+./bifrost --service=my-service --service-version=1.2.3 sbom upload /path/to/sbom.json
+```
+
+When neither `--git-repo-path` nor `BIFROST_GIT_REPO_PATH` is provided, bifrost does not automatically detect Git
+metadata.
 
 Example with Trivy generating a CycloneDX SBOM for a container image and piping it directly to bifrost:
 
@@ -152,28 +159,28 @@ gh api \
 
 ## Options
 
-| Option                       | Required    | Environment variable(s)            | Description                                                                                       |
-|------------------------------|-------------|------------------------------------|---------------------------------------------------------------------------------------------------|
-| `--api-key`                  | Yes         | `BIFROST_API_KEY`                  | Bifrost API key used for authentication.                                                          |
-| `--service`                  | Yes         | `SERVICE`                          | Name of the service.                                                                              |
-| `--service-version`          | Conditional | `SERVICE_VERSION`                  | Service version for the uploaded SBOM. Required unless an image is provided.                      |
-| `--image`                    | Conditional | `IMAGE`                            | Container image reference for the uploaded SBOM. Required unless a service version is provided.   |
-| `--server-url`               | No          | `SERVER_URL`, `BIFROST_SERVER_URL` | URL to the bifrost server.                                                                        |
-| `--retry-attempts`           | No          |                                    | Number of retry attempts for transient upload failures.                                           |
-| `--retry-delay`              | No          |                                    | Delay between upload retry attempts.                                                              |
-| `--git-branch`               | No          |                                    | Git branch name to attach to the upload.                                                          |
-| `--git-commit-sha`           | No          |                                    | Git commit SHA to attach to the upload.                                                           |
-| `--git-origin`               | No          |                                    | Git origin URL to attach to the upload.                                                           |
-| `--git-repo-path`            | No          |                                    | Git repository path used for automatic Git metadata detection. Defaults to the current directory. |
-| `--git-auto-detect`          | No          | `BIFROST_GIT_AUTO_DETECT`          | Automatically fill missing Git metadata from the current Git repository when available.           |
-| `--help`                     | No          |                                    | Show help and exit.                                                                               |
-| `--version`, `-V`            | No          |                                    | Print the CLI version and build commit, then exit.                                                 |
+| Option              | Required    | Environment variable(s)            | Description                                                                                     |
+|---------------------|-------------|------------------------------------|-------------------------------------------------------------------------------------------------|
+| `--api-key`         | Yes         | `BIFROST_API_KEY`                  | Bifrost API key used for authentication.                                                        |
+| `--service`         | Yes         | `SERVICE`                          | Name of the service.                                                                            |
+| `--service-version` | Conditional | `SERVICE_VERSION`                  | Service version for the uploaded SBOM. Required unless an image is provided.                    |
+| `--image`           | Conditional | `IMAGE`                            | Container image reference for the uploaded SBOM. Required unless a service version is provided. |
+| `--server-url`      | No          | `SERVER_URL`, `BIFROST_SERVER_URL` | URL to the bifrost server.                                                                      |
+| `--retry-attempts`  | No          |                                    | Number of retry attempts for transient upload failures.                                         |
+| `--retry-delay`     | No          |                                    | Delay between upload retry attempts.                                                            |
+| `--git-branch`      | No          |                                    | Git branch name to attach to the upload.                                                        |
+| `--git-commit-sha`  | No          |                                    | Git commit SHA to attach to the upload.                                                         |
+| `--git-origin`      | No          |                                    | Git origin URL to attach to the upload.                                                         |
+| `--git-repo-path`   | No          | `BIFROST_GIT_REPO_PATH`            | Git repository path used for automatic Git metadata detection.                                  |
+| `--help`, `-h`      | No          |                                    | Show help and exit.                                                                             |
+| `--version`, `-v`   | No          |                                    | Print the CLI version and build commit, then exit.                                              |
 
 ## Useful Links
 
 - Website: [bifrostsec.com](https://bifrostsec.com/)
 - Documentation: [docs.bifrostsec.com](https://docs.bifrostsec.com/)
-- Releases: [github.com/bifrostsec/bifrost-cli/releases/latest](https://github.com/bifrostsec/bifrost-cli/releases/latest)
+-
+Releases: [github.com/bifrostsec/bifrost-cli/releases/latest](https://github.com/bifrostsec/bifrost-cli/releases/latest)
 - Getting started guide: [docs.bifrostsec.com/guides/get-started](https://docs.bifrostsec.com/guides/get-started/)
 - SBOM reference: [https://docs.bifrostsec.com/reference/sbom/](https://docs.bifrostsec.com/reference/sbom/)
 - API reference: [docs.bifrostsec.com/api/v2](https://docs.bifrostsec.com/api/v2/)
