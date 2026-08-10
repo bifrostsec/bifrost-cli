@@ -61,6 +61,7 @@ func (t sbomUploadTask) Run(ctx context.Context) error {
 		Token:         t.apiKey,
 		RetryAttempts: t.retryAttempts,
 		RetryDelay:    t.retryDelay,
+		HTTPTimeout:   t.httpTimeout,
 		GitBranch:     t.gitBranch,
 		GitCommitSHA:  t.gitCommitSHA,
 		GitOrigin:     t.gitOrigin,
@@ -134,7 +135,7 @@ func (t sbomUploadTask) uploadStdinSBOM(ctx context.Context, api API) error {
 		_ = os.Remove(tmpPath)
 	}()
 
-	if _, err := io.Copy(tmpFile, os.Stdin); err != nil {
+	if err := copyStdinWithContext(ctx, tmpFile, os.Stdin); err != nil {
 		_ = tmpFile.Close()
 		return fmt.Errorf("failed to read SBOM from stdin: %w", err)
 	}
@@ -143,4 +144,18 @@ func (t sbomUploadTask) uploadStdinSBOM(ctx context.Context, api API) error {
 	}
 
 	return api.UploadSBOMFile(ctx, t.service, t.serviceVersion, tmpPath)
+}
+
+func copyStdinWithContext(ctx context.Context, destination io.Writer, stdin *os.File) error {
+	done := make(chan error, 1)
+	go func() {
+		_, err := io.Copy(destination, stdin)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

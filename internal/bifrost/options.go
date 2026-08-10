@@ -31,6 +31,7 @@ type Options struct {
 	image          string
 	retryAttempts  int
 	retryDelay     time.Duration
+	httpTimeout    time.Duration
 	gitBranch      string
 	gitCommitSHA   string
 	gitOrigin      string
@@ -46,6 +47,7 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.image, "image", "", "Container image reference for the uploaded SBOM (or IMAGE environment variable); required unless a service version is provided")
 	fl.IntVar(&opts.retryAttempts, "retry-attempts", DefaultRetryAttempts, "Number of retry attempts for transient upload failures")
 	fl.DurationVar(&opts.retryDelay, "retry-delay", DefaultRetryDelay, "Delay between upload retry attempts")
+	fl.DurationVar(&opts.httpTimeout, "http-timeout", DefaultHTTPTimeout, "Maximum duration to wait for an HTTP upload request")
 	fl.StringVar(&opts.gitBranch, "git-branch", "", "Optional Git branch name for the uploaded SBOM")
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
@@ -77,6 +79,10 @@ func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
 	if opts.retryDelay < 0 {
 		return fmt.Errorf("retry delay must be zero or greater")
 	}
+	if opts.httpTimeout <= 0 {
+		return fmt.Errorf("HTTP timeout must be greater than zero")
+	}
+	// An explicitly passed flag takes precedence over the environment variable.
 	if opts.gitRepoPath == "" {
 		opts.gitRepoPath = os.Getenv(gitRepoPathEnvironmentVariable)
 	}
