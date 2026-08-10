@@ -173,14 +173,13 @@ gh api \
 | `--git-origin`      | No          |                                    | Git origin URL to attach to the upload.                                                         |
 | `--git-repo-path`   | No          | `BIFROST_GIT_REPO_PATH`            | Git repository path used for automatic Git metadata detection.                                  |
 | `--help`, `-h`      | No          |                                    | Show help and exit.                                                                             |
-| `--version`, `-v`   | No          |                                    | Print the CLI version and build commit, then exit.                                              |
+| `--version`, `-V`   | No          |                                    | Print the CLI version and build commit, then exit.                                              |
 
 ## Useful Links
 
 - Website: [bifrostsec.com](https://bifrostsec.com/)
 - Documentation: [docs.bifrostsec.com](https://docs.bifrostsec.com/)
--
-Releases: [github.com/bifrostsec/bifrost-cli/releases/latest](https://github.com/bifrostsec/bifrost-cli/releases/latest)
+- Releases: [github.com/bifrostsec/bifrost-cli/releases/latest](https://github.com/bifrostsec/bifrost-cli/releases/latest)
 - Getting started guide: [docs.bifrostsec.com/guides/get-started](https://docs.bifrostsec.com/guides/get-started/)
 - SBOM reference: [https://docs.bifrostsec.com/reference/sbom/](https://docs.bifrostsec.com/reference/sbom/)
 - API reference: [docs.bifrostsec.com/api/v2](https://docs.bifrostsec.com/api/v2/)
