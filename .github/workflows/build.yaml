@@ -67,7 +67,7 @@ jobs:
 
       - name: Upload SBOM to bifrost
         if: ${{ github.repository_owner == 'bifrostsec' }}
-        uses: bifrostsec/submit-sbom-action@75022880ab1d80abd985c6b5b2c745e5d1d67e88 # v1.1.1
+        uses: bifrostsec/submit-sbom-action@f7a0d0029154f9d0b302b21d4fa517aefc605ee8 # v1.2.0
         with:
           api-token: ${{ secrets.BIFROST_API_KEY }}
           service: 'bifrost-cli'
