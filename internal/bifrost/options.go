@@ -56,11 +56,13 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 }
 
 func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
-	if u := os.Getenv("SERVER_URL"); u != "" {
-		opts.ServerURL = u
-	}
-	if u := os.Getenv("BIFROST_SERVER_URL"); u != "" {
-		opts.ServerURL = u
+	if !isFlagSet(fl, "server-url") {
+		if u := os.Getenv("SERVER_URL"); u != "" {
+			opts.ServerURL = u
+		}
+		if u := os.Getenv("BIFROST_SERVER_URL"); u != "" {
+			opts.ServerURL = u
+		}
 	}
 	_, err := url.Parse(opts.ServerURL)
 	if err != nil {
