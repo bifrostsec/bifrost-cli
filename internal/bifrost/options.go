@@ -40,7 +40,7 @@ type Options struct {
 }
 
 func RegisterOptions(fl *flag.FlagSet, opts *Options) {
-	fl.StringVar(&opts.ServerURL, "server-url", DefaultServerURL, "URL to bifrost server")
+	fl.StringVar(&opts.ServerURL, "server-url", DefaultServerURL, "URL to bifrost server (or SERVER_URL or BIFROST_SERVER_URL environment variable)")
 	fl.StringVar(&opts.apiKey, "api-key", "", "Bifrost API key (or BIFROST_API_KEY environment variable)")
 	fl.StringVar(&opts.service, "service", "", "Name of the service")
 	fl.StringVar(&opts.serviceVersion, "service-version", "", "Service version for the uploaded SBOM (or SERVICE_VERSION environment variable); required unless an image is provided")
@@ -56,11 +56,13 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 }
 
 func ValidateBaseOptions(fl *flag.FlagSet, opts *Options) error {
-	if u := os.Getenv("SERVER_URL"); u != "" {
-		opts.ServerURL = u
-	}
-	if u := os.Getenv("BIFROST_SERVER_URL"); u != "" {
-		opts.ServerURL = u
+	if !isFlagSet(fl, "server-url") {
+		if u := os.Getenv("SERVER_URL"); u != "" {
+			opts.ServerURL = u
+		}
+		if u := os.Getenv("BIFROST_SERVER_URL"); u != "" {
+			opts.ServerURL = u
+		}
 	}
 	_, err := url.Parse(opts.ServerURL)
 	if err != nil {
