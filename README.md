@@ -175,9 +175,10 @@ this order of precedence:
 3. The selected profile in `~/.bifrost/credentials`, then `~/.bifrost/config`.
 4. Built-in defaults.
 
-General settings live in `~/.bifrost/config` and secrets in `~/.bifrost/credentials`. Both files are INI formatted.
-The `default` profile is used unless `--profile` or `BIFROST_PROFILE` selects another one. As in the AWS CLI, a
-non-default profile is written as `[profile <name>]` in the config file and as `[<name>]` in the credentials file.
+General settings live in `~/.bifrost/config` and secrets in `~/.bifrost/credentials`. Both files are INI formatted
+and, as in the AWS CLI, either file may hold any setting; values in the credentials file win. The `default` profile is
+used unless `--profile` or `BIFROST_PROFILE` selects another one. A non-default profile is written as `[profile <name>]`
+in the config file and as `[<name>]` in the credentials file.
 
 ```ini
 # ~/.bifrost/config
@@ -209,16 +210,19 @@ The `config` command manages the files, so you never have to edit them by hand:
 ./bifrost config unset api_key                # remove a stored value
 ```
 
-Settings that can be stored: `server_url`, `api_key`, `org_id`, `retry_attempts`, `retry_delay`, `http_timeout`,
-`git_repo_path`, plus `access_token` and `access_token_expires_at`, which `bifrost auth` commands write. Secrets are
-masked in `config list` output, and files are created with owner-only permissions.
+Settings that can be stored: `server_url`, `api_key`, `org_id`, `retry_attempts`, `retry_delay`, `http_timeout` and
+`git_repo_path`, plus the `access_token`, `access_token_expires_at`, `access_token_server_url` and
+`access_token_org_id` entries that `bifrost auth` commands write. Secrets are masked in `config list` output, and the
+files are always written with owner-only permissions. The `config` commands keep working when a stored value is
+invalid, so a mistake can be inspected with `config list` and repaired with `config set` or `config unset`.
 
 ### Credentials
 
 When a command needs to authenticate, the CLI takes the first credential it finds:
 
 1. An API key from `--api-key`, `BIFROST_API_KEY`, or the `api_key` setting of the profile.
-2. An unexpired access token stored in the profile by a `bifrost auth` command.
+2. An unexpired access token stored in the profile by a `bifrost auth` command, provided it was issued by the
+   selected server and, when an organization id is given, for that organization.
 3. In GitHub Actions, an access token obtained by exchanging the job's OIDC token (see below).
 
 `bifrost auth token` prints the credential the CLI would use, which is handy for debugging or for passing the token to

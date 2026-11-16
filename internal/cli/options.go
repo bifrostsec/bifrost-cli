@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"net/url"
@@ -80,10 +81,16 @@ type ResolvedOptions struct {
 	// DeprecatedGitAutoDetect is true when the legacy auto-detection flag or
 	// environment variable was used instead of a repository path.
 	DeprecatedGitAutoDetect bool
+	// Invalid joins the errors for stored or environment values that could not
+	// be parsed and therefore kept their default; nil when all values are valid.
+	// Commands that inspect or repair the configuration tolerate these.
+	Invalid error
 }
 
 // ResolveOptions fills opts from every configuration source in order of
-// precedence (flags, environment, profile, defaults) and validates the result.
+// precedence (flags, environment, profile, defaults). It fails only when the
+// configuration files cannot be read; invalid values are reported through
+// ResolvedOptions.Invalid and rejected by ValidateOptions.
 func ResolveOptions(fl *flag.FlagSet, opts *Options) (*ResolvedOptions, error) {
 	profile := resolveProfile(fl, opts)
 	opts.profile = profile.Value
@@ -92,31 +99,16 @@ func ResolveOptions(fl *flag.FlagSet, opts *Options) (*ResolvedOptions, error) {
 	if err != nil {
 		return nil, err
 	}
-	resolved, err := config.Resolve(fl, cfg)
-	if err != nil {
-		return nil, err
-	}
+	resolved, invalid := config.Resolve(fl, cfg)
+
 	// Per-upload values have environment variables but no configuration file setting.
 	applyEnvironmentFallback(&opts.service, "SERVICE")
 	applyEnvironmentFallback(&opts.serviceVersion, "SERVICE_VERSION")
 	applyEnvironmentFallback(&opts.image, "IMAGE")
 
-	if _, err := url.Parse(opts.ServerURL); err != nil {
-		return nil, err
-	}
-	if opts.retryAttempts < 0 {
-		return nil, fmt.Errorf("retry attempts must be zero or greater")
-	}
-	if opts.retryDelay < 0 {
-		return nil, fmt.Errorf("retry delay must be zero or greater")
-	}
-	if opts.httpTimeout <= 0 {
-		return nil, fmt.Errorf("HTTP timeout must be greater than zero")
-	}
-
 	deprecatedGitAutoDetect := isDeprecatedGitAutoDetectSet(fl, opts)
 	if err := handleDeprecatedGitAutoDetect(fl, opts); err != nil {
-		return nil, err
+		invalid = errors.Join(invalid, err)
 	}
 
 	return &ResolvedOptions{
@@ -124,7 +116,29 @@ func ResolveOptions(fl *flag.FlagSet, opts *Options) (*ResolvedOptions, error) {
 		Settings:                resolved,
 		Profile:                 profile,
 		DeprecatedGitAutoDetect: deprecatedGitAutoDetect,
+		Invalid:                 invalid,
 	}, nil
+}
+
+// ValidateOptions rejects invalid stored values and out-of-range options. It
+// is skipped for `config` commands so a bad value can be inspected and repaired.
+func ValidateOptions(opts *Options, resolved *ResolvedOptions) error {
+	if resolved.Invalid != nil {
+		return resolved.Invalid
+	}
+	if _, err := url.Parse(opts.ServerURL); err != nil {
+		return err
+	}
+	if opts.retryAttempts < 0 {
+		return fmt.Errorf("retry attempts must be zero or greater")
+	}
+	if opts.retryDelay < 0 {
+		return fmt.Errorf("retry delay must be zero or greater")
+	}
+	if opts.httpTimeout <= 0 {
+		return fmt.Errorf("HTTP timeout must be greater than zero")
+	}
+	return nil
 }
 
 func applyEnvironmentFallback(value *string, name string) {
@@ -217,9 +231,12 @@ func (o Options) githubActionsOptions(cliVersion string) auth.GitHubActionsOptio
 // credentialChain builds the credential provider chain for this invocation.
 func (o Options) credentialChain(resolved *ResolvedOptions, cliVersion string) *auth.Chain {
 	return auth.NewChain(auth.ChainOptions{
-		Profile:       o.profile,
-		Settings:      resolved.Settings,
-		GitHubActions: o.githubActionsOptions(cliVersion),
-		Output:        os.Stderr,
+		Profile:     o.profile,
+		Settings:    resolved.Settings,
+		ServerURL:   o.ServerURL,
+		OrgID:       o.orgID,
+		HTTPTimeout: o.httpTimeout,
+		UserAgent:   portal.UserAgent(cliVersion),
+		Output:      os.Stderr,
 	})
 }

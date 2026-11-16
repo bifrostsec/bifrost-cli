@@ -20,6 +20,7 @@ import (
 	"github.com/bifrostsec/bifrost-cli/internal/testutil"
 )
 
+// resolveTestOptions resolves and validates like every command except `config` does.
 func resolveTestOptions(t *testing.T, args ...string) (Options, *ResolvedOptions, error) {
 	t.Helper()
 	fl := flag.NewFlagSet("", flag.ContinueOnError)
@@ -27,7 +28,10 @@ func resolveTestOptions(t *testing.T, args ...string) (Options, *ResolvedOptions
 	RegisterOptions(fl, &options)
 	require.NoError(t, fl.Parse(args))
 	resolved, err := ResolveOptions(fl, &options)
-	return options, resolved, err
+	if err != nil {
+		return options, nil, err
+	}
+	return options, resolved, ValidateOptions(&options, resolved)
 }
 
 func TestRegisterOptions_RegistersAFlagForEverySetting(t *testing.T) {
@@ -178,10 +182,14 @@ api_key = staging-key
 func TestResolveOptions_InvalidValuesReportTheirSource(t *testing.T) {
 	configPath, _ := testutil.WriteConfigFiles(t, "[default]\nhttp_timeout = soon\n", "")
 
-	_, _, err := resolveTestOptions(t)
+	options, resolved, err := resolveTestOptions(t)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `invalid value "soon" for http_timeout`)
 	assert.Contains(t, err.Error(), configPath)
+	require.NotNil(t, resolved, "resolution itself succeeds so the configuration can be repaired")
+	assert.Equal(t, err, resolved.Invalid)
+	assert.Equal(t, 30*time.Second, options.httpTimeout, "the invalid value is not applied")
+	assert.Equal(t, "soon", config.Find(resolved.Settings, "http_timeout").Value)
 }
 
 func TestResolveOptions_MalformedConfigFile(t *testing.T) {

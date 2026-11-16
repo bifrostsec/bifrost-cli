@@ -71,6 +71,12 @@ func runCLI(ctx context.Context, version, gitCommit string, args []string) int {
 	}
 
 	name := remaining[0]
+	if name == "config" {
+		// Configuration commands must keep working with a bad stored value so it can be repaired.
+		printWarnings(resolved.Invalid)
+	} else if err := ValidateOptions(&options, resolved); err != nil {
+		return printUsageError(err, fl)
+	}
 	// `config` may create a new profile, every other command needs an existing one.
 	if name != "config" && options.profile != config.DefaultProfile && !resolved.Config.ProfileExists() {
 		return printError(fmt.Errorf(
@@ -117,6 +123,20 @@ func runCLI(ctx context.Context, version, gitCommit string, args []string) int {
 		return printError(err)
 	}
 	return 0
+}
+
+// printWarnings prints one line per problem; err may be nil or a joined error.
+func printWarnings(err error) {
+	if err == nil {
+		return
+	}
+	problems := []error{err}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		problems = joined.Unwrap()
+	}
+	for _, problem := range problems {
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: %v\n", problem)
+	}
 }
 
 // printUsageError reports a mistake in the invocation and shows how to use the CLI.

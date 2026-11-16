@@ -140,7 +140,8 @@ func (f *File) Set(sectionName, key, value string) {
 		f.sections = append(f.sections, s)
 	}
 	formatted := line{key: key, value: value, raw: fmt.Sprintf("%s = %s", key, value)}
-	for i := range s.lines {
+	// Replace the last occurrence, which is the one Get reports as effective.
+	for i := len(s.lines) - 1; i >= 0; i-- {
 		if strings.EqualFold(s.lines[i].key, key) {
 			s.lines[i] = formatted
 			return
@@ -191,17 +192,35 @@ func (f *File) WriteTo(w io.Writer) (int64, error) {
 	return int64(n), err
 }
 
-// Save writes the file to path, creating parent directories. Files are created
-// with owner-only permissions because they may hold credentials.
+// Save writes the file to path, creating parent directories. The content is
+// written to a temporary file with owner-only permissions and then moved into
+// place, so the result is never partially written and always ends up with mode
+// 0600 even when path already existed with wider permissions.
 func (f *File) Save(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	var b strings.Builder
-	if _, err := f.WriteTo(&b); err != nil {
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o600)
+	tmpPath := tmp.Name()
+	defer func() {
+		_ = os.Remove(tmpPath) // no-op once the rename succeeded
+	}()
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if _, err := f.WriteTo(tmp); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, path)
 }
 
 func (f *File) section(name string) *section {

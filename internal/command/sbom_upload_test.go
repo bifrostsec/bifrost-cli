@@ -18,9 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type unexpectedUploadClient struct{}
-
-func (unexpectedUploadClient) UploadSBOMFile(context.Context, string, string, string) error {
+func unexpectedUpload(context.Context, string) error {
 	return errors.New("upload should not be reached")
 }
 
@@ -66,7 +64,7 @@ func TestSBOMUpload_StdinCancellationCleansUpTemporaryFile(t *testing.T) {
 	task := sbomUpload{opts: SBOMUploadOptions{Service: "test-service", ServiceVersion: "test-version"}}
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- task.uploadStdinSBOM(ctx, unexpectedUploadClient{})
+		errCh <- task.uploadStdinSBOM(ctx, unexpectedUpload)
 	}()
 
 	waitForTemporaryStdinSBOM(t, tempDir)

@@ -66,6 +66,47 @@ func TestCLI_ConfigUnsetRemovesValue(t *testing.T) {
 	assert.Equal(t, 0, CLI("1.0", "commit", []string{"config", "unset", "access_token"}), "unsetting an absent value succeeds")
 }
 
+func TestCLI_ConfigCommandsRepairInvalidStoredValues(t *testing.T) {
+	configPath, _ := testutil.WriteConfigFiles(t, "[default]\nhttp_timeout = soon\n", "")
+	t.Setenv("BIFROST_RETRY_ATTEMPTS", "many")
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{"--api-key=k", "--service=s", "--service-version=1", "sbom", "upload", "x.json"})
+	})
+	assert.Equal(t, 2, exitCode, "other commands refuse to run with invalid values")
+	assert.Contains(t, stderr, `invalid value "soon" for http_timeout`)
+	assert.Contains(t, stderr, `invalid value "many" for retry_attempts`)
+
+	exitCode, stdout, stderr := captureOutput(t, func() int {
+		return CLI("1.0", "commit", []string{"config", "get", "http_timeout"})
+	})
+	assert.Equal(t, 0, exitCode)
+	assert.Equal(t, "soon\n", stdout)
+	assert.Contains(t, stderr, `Warning: invalid value "soon" for http_timeout`)
+
+	exitCode, stdout, _ = captureOutput(t, func() int {
+		return CLI("1.0", "commit", []string{"config", "list"})
+	})
+	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stdout, "http_timeout")
+	assert.Contains(t, stdout, "soon")
+
+	exitCode, _, stderr = captureOutput(t, func() int {
+		return CLI("1.0", "commit", []string{"config", "set", "http_timeout", "45s"})
+	})
+	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stderr, "Warning:")
+	assert.Equal(t, "[default]\nhttp_timeout = 45s\n", testutil.ReadFile(t, configPath))
+
+	exitCode, _, stderr = captureOutput(t, func() int {
+		return CLI("1.0", "commit", []string{"config", "unset", "http_timeout"})
+	})
+	assert.Equal(t, 0, exitCode)
+	assert.Contains(t, stderr, `invalid value "many" for retry_attempts`, "the environment problem is still reported")
+	assert.NotContains(t, stderr, "http_timeout", "the repaired value is no longer reported")
+	assert.Equal(t, "[default]\n", testutil.ReadFile(t, configPath))
+}
+
 func TestCLI_ConfigRejectsUnknownNames(t *testing.T) {
 	testutil.WriteConfigFiles(t, "", "")
 

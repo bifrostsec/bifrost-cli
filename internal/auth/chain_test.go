@@ -24,23 +24,28 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+func fromCredentialsFile(name, value string) config.Resolved {
+	r := config.Resolved{Setting: config.Setting{Name: name}, Source: config.SourceNotSet}
+	if value != "" {
+		r.Value, r.Source, r.Location = value, config.SourceCredentialsFile, "/tmp/credentials"
+	}
+	return r
+}
+
 func testChain(apiKey, accessToken, expiresAt string) *Chain {
 	chain := &Chain{
 		profile:              "test",
+		serverURL:            "https://portal.example.com",
 		apiKey:               config.Resolved{Setting: config.Setting{Name: "api_key"}, Source: config.SourceNotSet},
-		accessToken:          config.Resolved{Setting: config.Setting{Name: config.AccessTokenSetting}, Source: config.SourceNotSet},
-		accessTokenExpiresAt: config.Resolved{Setting: config.Setting{Name: config.AccessTokenExpiresAtSetting}, Source: config.SourceNotSet},
+		accessToken:          fromCredentialsFile(config.AccessTokenSetting, accessToken),
+		accessTokenExpiresAt: fromCredentialsFile(config.AccessTokenExpiresAtSetting, expiresAt),
+		accessTokenServerURL: fromCredentialsFile(config.AccessTokenServerURLSetting, ""),
+		accessTokenOrgID:     fromCredentialsFile(config.AccessTokenOrgIDSetting, ""),
 		now:                  func() time.Time { return time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC) },
 		output:               &bytes.Buffer{},
 	}
 	if apiKey != "" {
 		chain.apiKey.Value, chain.apiKey.Source, chain.apiKey.Location = apiKey, config.SourceEnvironment, "BIFROST_API_KEY"
-	}
-	if accessToken != "" {
-		chain.accessToken.Value, chain.accessToken.Source, chain.accessToken.Location = accessToken, config.SourceCredentialsFile, "/tmp/credentials"
-	}
-	if expiresAt != "" {
-		chain.accessTokenExpiresAt.Value, chain.accessTokenExpiresAt.Source, chain.accessTokenExpiresAt.Location = expiresAt, config.SourceCredentialsFile, "/tmp/credentials"
 	}
 	return chain
 }
@@ -86,6 +91,49 @@ func TestChain_RejectsExpiredOrExpiringCachedAccessToken(t *testing.T) {
 	}
 }
 
+func TestChain_ReusesCachedAccessTokenOnlyForItsServerAndOrganization(t *testing.T) {
+	scoped := func(serverURL, orgID string) *Chain {
+		chain := testChain("", "cached-token", "2026-11-16T13:00:00Z")
+		chain.accessTokenServerURL = fromCredentialsFile(config.AccessTokenServerURLSetting, "https://portal.example.com/")
+		chain.accessTokenOrgID = fromCredentialsFile(config.AccessTokenOrgIDSetting, "org_a")
+		chain.serverURL, chain.orgID = serverURL, orgID
+		return chain
+	}
+
+	credentials, err := scoped("https://PORTAL.example.com", "").Resolve(context.Background())
+	require.NoError(t, err, "same server up to case and trailing slash, organization not given")
+	assert.Equal(t, "cached-token", credentials.Token)
+	assert.Equal(t, "https://portal.example.com/", credentials.ServerURL)
+	assert.Equal(t, "org_a", credentials.OrgID)
+
+	credentials, err = scoped("https://portal.example.com", "org_a").Resolve(context.Background())
+	require.NoError(t, err, "same organization")
+	assert.Equal(t, "cached-token", credentials.Token)
+
+	_, err = scoped("https://other.example.com", "").Resolve(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cached access token in credentials-file /tmp/credentials was issued by https://portal.example.com/, not https://other.example.com")
+
+	_, err = scoped("https://portal.example.com", "org_b").Resolve(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cached access token in credentials-file /tmp/credentials is for organization org_a, not org_b")
+
+	unscoped := testChain("", "cached-token", "")
+	unscoped.serverURL, unscoped.orgID = "https://anywhere.example.com", "org_z"
+	credentials, err = unscoped.Resolve(context.Background())
+	require.NoError(t, err, "a token stored without scope, e.g. by hand, is usable anywhere")
+	assert.Equal(t, "cached-token", credentials.Token)
+}
+
+func TestCredentials_Valid(t *testing.T) {
+	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+	assert.False(t, Credentials{}.Valid(now), "no token")
+	assert.True(t, Credentials{Token: "t"}.Valid(now), "no expiry")
+	assert.True(t, Credentials{Token: "t", ExpiresAt: now.Add(31 * time.Second)}.Valid(now))
+	assert.False(t, Credentials{Token: "t", ExpiresAt: now.Add(30 * time.Second)}.Valid(now), "within skew")
+	assert.False(t, Credentials{Token: "t", ExpiresAt: now.Add(-time.Minute)}.Valid(now))
+}
+
 func TestChain_ReportsInvalidExpiry(t *testing.T) {
 	chain := testChain("", "cached-token", "tomorrow")
 
@@ -124,9 +172,13 @@ func TestStoreAccessToken(t *testing.T) {
 	require.NoError(t, err)
 
 	expiresAt := time.Date(2026, 11, 16, 12, 10, 0, 0, time.FixedZone("CET", 3600))
-	require.NoError(t, StoreAccessToken(cfg, Credentials{Token: "token", ExpiresAt: expiresAt}))
-	assert.Equal(t, "[ci]\naccess_token = token\naccess_token_expires_at = 2026-11-16T11:10:00Z\n", testutil.ReadFile(t, credentialsPath))
+	require.NoError(t, StoreAccessToken(cfg, Credentials{Token: "token", ExpiresAt: expiresAt, ServerURL: "https://portal.example.com", OrgID: "org_1"}))
+	stored := testutil.ReadFile(t, credentialsPath)
+	assert.Contains(t, stored, "[ci]\naccess_token = token\n")
+	assert.Contains(t, stored, "access_token_expires_at = 2026-11-16T11:10:00Z\n")
+	assert.Contains(t, stored, "access_token_server_url = https://portal.example.com\n")
+	assert.Contains(t, stored, "access_token_org_id = org_1\n")
 
 	require.NoError(t, StoreAccessToken(cfg, Credentials{Token: "forever"}))
-	assert.Equal(t, "[ci]\naccess_token = forever\n", testutil.ReadFile(t, credentialsPath), "a token without expiry drops the stale expiry")
+	assert.Equal(t, "[ci]\naccess_token = forever\n", testutil.ReadFile(t, credentialsPath), "a token without expiry or scope drops the stale metadata")
 }

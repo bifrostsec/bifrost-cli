@@ -141,15 +141,13 @@ func (c *Config) credentialsSection() string {
 	return c.Profile
 }
 
-// lookup finds the stored value of a setting for the profile, checking the
-// credentials file before the config file.
+// lookup finds the stored value of a setting for the profile. Like the AWS
+// CLI, both files may hold any setting and the credentials file wins, so a
+// profile that lives entirely in the credentials file works as expected.
 func (c *Config) lookup(s Setting) (value string, source Source, path string, ok bool) {
-	if s.File == CredentialsFile {
-		if value, ok := c.credentials.Get(c.credentialsSection(), s.Name); ok {
-			return value, SourceCredentialsFile, c.CredentialsPath, true
-		}
+	if value, ok := c.credentials.Get(c.credentialsSection(), s.Name); ok {
+		return value, SourceCredentialsFile, c.CredentialsPath, true
 	}
-	// Every setting may be stored in the config file, credential settings as a fallback.
 	if value, ok := c.config.Get(c.configSection(), s.Name); ok {
 		return value, SourceConfigFile, c.ConfigPath, true
 	}

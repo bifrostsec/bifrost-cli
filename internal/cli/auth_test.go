@@ -202,6 +202,8 @@ func TestCLI_AuthGitHubActionsStoresAccessTokenForLaterCommands(t *testing.T) {
 	credentials := testutil.ReadFile(t, credentialsPath)
 	assert.Contains(t, credentials, "[default]\naccess_token = "+testExchangedToken+"\n")
 	assert.Regexp(t, `access_token_expires_at = \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`, credentials)
+	assert.Contains(t, credentials, "access_token_server_url = "+portal.URL+"\n")
+	assert.Contains(t, credentials, "access_token_org_id = "+testOrgID+"\n")
 
 	// A following step without the OIDC environment or an organization id uses the stored token.
 	t.Setenv(auth.GitHubActionsIDTokenRequestURLVariable, "")
@@ -214,6 +216,21 @@ func TestCLI_AuthGitHubActionsStoresAccessTokenForLaterCommands(t *testing.T) {
 	assert.Empty(t, stderr)
 	assert.Equal(t, int32(1), portal.exchanges.Load(), "no second exchange")
 	assert.Equal(t, "Bearer "+testExchangedToken, portal.uploadAuthorization())
+
+	// The stored token is never sent to another server, nor used for another organization.
+	other := newFakePortal(t)
+	exitCode, stderr = captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{"--server-url=" + other.URL, "--service=test-service", "--service-version=1.0", "sbom", "upload", path})
+	})
+	assert.Equal(t, 2, exitCode)
+	assert.Contains(t, stderr, "was issued by "+portal.URL+", not "+other.URL)
+	assert.Empty(t, other.uploadAuthorization())
+
+	exitCode, stderr = captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{"--server-url=" + portal.URL, "--org-id=org_other", "--service=test-service", "--service-version=1.0", "sbom", "upload", path})
+	})
+	assert.Equal(t, 2, exitCode)
+	assert.Contains(t, stderr, "is for organization "+testOrgID+", not org_other")
 }
 
 func TestCLI_AuthGitHubActionsOutsideGitHubActionsFails(t *testing.T) {

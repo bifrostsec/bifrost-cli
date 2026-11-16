@@ -67,7 +67,13 @@ func TestGitHubActionsExchange_Exchange(t *testing.T) {
 
 	credentials, err := exchange.Exchange(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, Credentials{Token: "access", Source: GitHubActionsCredentialSource, ExpiresAt: now.Add(10 * time.Minute)}, credentials)
+	assert.Equal(t, Credentials{
+		Token:     "access",
+		Source:    GitHubActionsCredentialSource,
+		ExpiresAt: now.Add(10 * time.Minute),
+		ServerURL: portal.URL,
+		OrgID:     "org_1",
+	}, credentials)
 }
 
 func TestGitHubActionsEnvironment_FetchIDTokenErrors(t *testing.T) {

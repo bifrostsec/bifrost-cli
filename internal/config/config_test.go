@@ -80,20 +80,40 @@ api_key = key-from-credentials
 	assert.Equal(t, SourceNotSet, Find(resolved, "unknown").Source)
 }
 
-func TestResolve_InvalidValuesReportTheirSource(t *testing.T) {
-	configPath, _ := testutil.WriteConfigFiles(t, "[default]\nhttp_timeout = soon\n", "")
-	fl, _ := newFlagSet()
+func TestResolve_InvalidValuesAreReportedButDoNotStopResolution(t *testing.T) {
+	configPath, _ := testutil.WriteConfigFiles(t, "[default]\nhttp_timeout = soon\nserver_url = https://file.example.com\n", "")
+	fl, values := newFlagSet()
 	cfg, err := Load(DefaultProfile)
 	require.NoError(t, err)
 
-	_, err = Resolve(fl, cfg)
+	resolved, err := Resolve(fl, cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `invalid value "soon" for http_timeout from config-file `+configPath)
+	assert.Equal(t, "https://file.example.com", *values["server_url"].(*string), "valid values are still applied")
+	assert.Equal(t, 30*time.Second, *values["http_timeout"].(*time.Duration), "the invalid value leaves the default in place")
+	invalid := Find(resolved, "http_timeout")
+	assert.Equal(t, "soon", invalid.Value, "the stored value is still reported so it can be inspected and repaired")
+	assert.Equal(t, SourceConfigFile, invalid.Source)
 
 	t.Setenv("BIFROST_RETRY_ATTEMPTS", "many")
 	_, err = Resolve(fl, cfg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "environment variable BIFROST_RETRY_ATTEMPTS")
+	assert.Contains(t, err.Error(), "http_timeout", "every invalid value is reported")
+}
+
+func TestLoad_CredentialsFileMayHoldAnySetting(t *testing.T) {
+	_, credentialsPath := testutil.WriteConfigFiles(t, "[default]\nserver_url = https://config.example.com\n", "[default]\napi_key = key\nserver_url = https://credentials.example.com\n")
+	fl, values := newFlagSet()
+	cfg, err := Load(DefaultProfile)
+	require.NoError(t, err)
+
+	resolved, err := Resolve(fl, cfg)
+	require.NoError(t, err)
+	assert.Equal(t, "https://credentials.example.com", *values["server_url"].(*string), "the credentials file wins for every setting")
+	serverURL := Find(resolved, "server_url")
+	assert.Equal(t, SourceCredentialsFile, serverURL.Source)
+	assert.Equal(t, credentialsPath, serverURL.Location)
 }
 
 func TestLoad_ProfilesAndSections(t *testing.T) {
@@ -202,7 +222,7 @@ func TestLookupSetting_AcceptsFlagSpelling(t *testing.T) {
 	_, ok := LookupSetting("service")
 	assert.False(t, ok, "per-upload options are not stored in configuration files")
 	assert.Panics(t, func() { MustSetting("service") })
-	assert.Equal(t, []string{"server_url", "api_key", "org_id", "retry_attempts", "retry_delay", "http_timeout", "git_repo_path", "access_token", "access_token_expires_at"}, Names())
+	assert.Equal(t, []string{"server_url", "api_key", "org_id", "retry_attempts", "retry_delay", "http_timeout", "git_repo_path", "access_token", "access_token_expires_at", "access_token_server_url", "access_token_org_id"}, Names())
 }
 
 func TestResolved_DescribeSource(t *testing.T) {

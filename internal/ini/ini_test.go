@@ -97,6 +97,22 @@ org_id = org_999
 `, out.String())
 }
 
+func TestSet_ReplacesTheEffectiveDuplicate(t *testing.T) {
+	file, err := Parse(strings.NewReader("[default]\napi_key = old\n# shadowed above\napi_key = current\n"))
+	require.NoError(t, err)
+	value, _ := file.Get("default", "api_key")
+	require.Equal(t, "current", value, "the last duplicate is the effective one")
+
+	file.Set("default", "api_key", "new")
+
+	value, _ = file.Get("default", "api_key")
+	assert.Equal(t, "new", value)
+	var out strings.Builder
+	_, err = file.WriteTo(&out)
+	require.NoError(t, err)
+	assert.Equal(t, "[default]\napi_key = old\n# shadowed above\napi_key = new\n", out.String())
+}
+
 func TestDelete_RemovesKey(t *testing.T) {
 	file, err := Parse(strings.NewReader(sample))
 	require.NoError(t, err)
@@ -129,6 +145,27 @@ func TestLoadAndSave_RoundTripsWithOwnerOnlyPermissions(t *testing.T) {
 	value, ok := reloaded.Get("default", "api_key")
 	assert.True(t, ok)
 	assert.Equal(t, "secret", value)
+}
+
+func TestSave_TightensPermissionsOfExistingFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "credentials")
+	require.NoError(t, os.WriteFile(path, []byte("[default]\napi_key = old\n"), 0o644))
+
+	file, err := Load(path)
+	require.NoError(t, err)
+	file.Set("default", "api_key", "new")
+	require.NoError(t, file.Save(path))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "secrets must not stay world readable")
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "[default]\napi_key = new\n", string(data))
+
+	entries, err := os.ReadDir(filepath.Dir(path))
+	require.NoError(t, err)
+	assert.Len(t, entries, 1, "no temporary file is left behind")
 }
 
 func TestLoad_ReportsParseErrorsWithPath(t *testing.T) {

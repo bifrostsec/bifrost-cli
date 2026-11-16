@@ -163,5 +163,7 @@ func (g *GitHubActionsExchange) Exchange(ctx context.Context) (Credentials, erro
 		Token:     token.AccessToken,
 		Source:    GitHubActionsCredentialSource,
 		ExpiresAt: token.ExpiresAt(g.now()),
+		ServerURL: g.oauth2.ServerURL,
+		OrgID:     g.orgID,
 	}, nil
 }

@@ -55,14 +55,22 @@ split into packages along the three-layer architecture pattern; dependencies onl
   INI formatted (`internal/ini`), profiles as `[default]` / `[profile <name>]` (config) and `[<name>]` (credentials).
   `BIFROST_CONFIG_FILE`, `BIFROST_SHARED_CREDENTIALS_FILE`, `BIFROST_PROFILE` and `--profile` override locations
   and the profile.
-- Precedence: command-line flag > environment variable > credentials file > config file > default.
+- Precedence: command-line flag > environment variable > credentials file > config file > default. Both files may
+  hold any setting (as in the AWS CLI); `Setting.File` only decides where `config set` writes. Files are saved
+  atomically with mode 0600 even when they pre-existed with wider permissions.
 - **Adding a setting**: add one entry to `config.Settings` in `internal/config/settings.go` and, if it should have a
   flag, register it in `cli.RegisterOptions` (a test asserts every setting's flag exists). Resolution,
   `config list|get|set|unset` and masking follow from the registry.
 - Credential chain order: API key (flag/env/file) > unexpired `access_token` stored in the profile > GitHub Actions
   OIDC token exchange (when `ACTIONS_ID_TOKEN_REQUEST_URL`/`ACTIONS_ID_TOKEN_REQUEST_TOKEN` are set and an
-  `org_id` is configured). `bifrost auth github-actions` performs the exchange and stores `access_token` and
-  `access_token_expires_at` in the credentials file; `bifrost auth token` prints the resolved token.
+  `org_id` is configured). `bifrost auth github-actions` performs the exchange and stores `access_token`,
+  `access_token_expires_at`, `access_token_server_url` and `access_token_org_id` in the credentials file; the chain
+  only reuses a cached token for the server (and organization, when one is given) it was issued for.
+  `bifrost auth token` prints the resolved token. The upload task resolves credentials lazily through a
+  `credentialCache`, after stdin is staged and again whenever the current token is about to expire.
+- `cli.ResolveOptions` never fails on an invalid stored value; it records it in `ResolvedOptions.Invalid` and
+  `cli.ValidateOptions` rejects it for every command except `config`, which prints a warning instead so the value
+  can be repaired.
 - A future interactive OAuth2 login (`bifrost auth login`) should store its tokens (`access_token`,
   `access_token_expires_at`, `refresh_token`) in the same credentials profile via `auth.StoreAccessToken`, plug
   into `auth.Chain`, and add its grant to `oauth2.Client`, which already handles token endpoint requests and

@@ -36,6 +36,28 @@ type sbomUpload struct {
 	opts        SBOMUploadOptions
 	credentials auth.Resolver
 	paths       []string
+	now         func() time.Time
+}
+
+// credentialCache hands out a token for each upload and asks the resolver
+// again once the current one is about to expire. Credentials are therefore
+// first obtained after standard input has been staged and stay fresh across a
+// long batch, which matters for short-lived exchanged tokens.
+type credentialCache struct {
+	resolver auth.Resolver
+	now      func() time.Time
+	current  auth.Credentials
+}
+
+func (c *credentialCache) Token(ctx context.Context) (string, error) {
+	if !c.current.Valid(c.now()) {
+		credentials, err := c.resolver.Resolve(ctx)
+		if err != nil {
+			return "", err
+		}
+		c.current = credentials
+	}
+	return c.current.Token, nil
 }
 
 const gitMetadataDetectionMessage = "Git metadata detection from %s:\n  git_branch=%q\n  git_commit_sha=%q\n  git_origin=%q\n"
@@ -62,6 +84,7 @@ func NewSBOMUpload(opts SBOMUploadOptions, credentials auth.Resolver, paths []st
 		opts:        opts,
 		credentials: credentials,
 		paths:       paths,
+		now:         time.Now,
 	}, nil
 }
 
@@ -69,13 +92,41 @@ func (t sbomUpload) Run(ctx context.Context) error {
 	if len(t.paths) == 0 {
 		return fmt.Errorf("no SBOM file paths provided")
 	}
-	credentials, err := t.credentials.Resolve(ctx)
-	if err != nil {
-		return err
+	tokens := &credentialCache{resolver: t.credentials, now: t.now}
+	upload := func(ctx context.Context, path string) error {
+		token, err := tokens.Token(ctx)
+		if err != nil {
+			return err
+		}
+		return t.newClient(token).UploadSBOMFile(ctx, t.opts.Service, t.opts.ServiceVersion, path)
 	}
-	client := portal.NewClient(portal.ClientConfig{
+
+	stdinConsumed := false
+	for _, path := range t.paths {
+		if path == "-" {
+			if stdinConsumed {
+				return fmt.Errorf("stdin can only be used once")
+			}
+			if err := t.uploadStdinSBOM(ctx, upload); err != nil {
+				return err
+			}
+			stdinConsumed = true
+			fmt.Printf("Uploaded stdin to %s\n", t.opts.ServerURL)
+			continue
+		}
+
+		if err := upload(ctx, path); err != nil {
+			return err
+		}
+		fmt.Printf("Uploaded %s to %s\n", path, t.opts.ServerURL)
+	}
+	return nil
+}
+
+func (t sbomUpload) newClient(token string) portal.Client {
+	return portal.NewClient(portal.ClientConfig{
 		ServerURL:     t.opts.ServerURL,
-		Token:         credentials.Token,
+		Token:         token,
 		RetryAttempts: t.opts.RetryAttempts,
 		RetryDelay:    t.opts.RetryDelay,
 		HTTPTimeout:   t.opts.HTTPTimeout,
@@ -85,26 +136,6 @@ func (t sbomUpload) Run(ctx context.Context) error {
 		Image:         t.opts.Image,
 		CliVersion:    t.opts.CLIVersion,
 	})
-	stdinConsumed := false
-	for _, path := range t.paths {
-		if path == "-" {
-			if stdinConsumed {
-				return fmt.Errorf("stdin can only be used once")
-			}
-			if err := t.uploadStdinSBOM(ctx, client); err != nil {
-				return err
-			}
-			stdinConsumed = true
-			fmt.Printf("Uploaded stdin to %s\n", t.opts.ServerURL)
-			continue
-		}
-
-		if err := client.UploadSBOMFile(ctx, t.opts.Service, t.opts.ServiceVersion, path); err != nil {
-			return err
-		}
-		fmt.Printf("Uploaded %s to %s\n", path, t.opts.ServerURL)
-	}
-	return nil
 }
 
 func printGitMetadataDetection(gitRepoPath string, discovery git.Discovery) {
@@ -134,7 +165,9 @@ func applyGitMetadata(opts SBOMUploadOptions, metadata git.Metadata) SBOMUploadO
 	return opts
 }
 
-func (t sbomUpload) uploadStdinSBOM(ctx context.Context, client portal.Client) error {
+// uploadStdinSBOM stages standard input in a temporary file and hands it to
+// upload, so credentials are only needed once the whole SBOM has arrived.
+func (t sbomUpload) uploadStdinSBOM(ctx context.Context, upload func(ctx context.Context, path string) error) error {
 	fi, err := os.Stdin.Stat()
 	if err != nil {
 		return fmt.Errorf("failed to stat stdin: %w", err)
@@ -160,7 +193,7 @@ func (t sbomUpload) uploadStdinSBOM(ctx context.Context, client portal.Client) e
 		return fmt.Errorf("failed to finalize stdin SBOM temp file: %w", err)
 	}
 
-	return client.UploadSBOMFile(ctx, t.opts.Service, t.opts.ServiceVersion, tmpPath)
+	return upload(ctx, tmpPath)
 }
 
 func copyStdinWithContext(ctx context.Context, destination io.Writer, stdin *os.File) error {

@@ -4,6 +4,7 @@
 package config
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -12,7 +13,9 @@ import (
 	"github.com/bifrostsec/bifrost-cli/internal/flagutil"
 )
 
-// File identifies which file `config set` writes a setting to.
+// File identifies which file `config set` writes a setting to. Every setting
+// is read from both files, the credentials file taking precedence, so File
+// only matters for writes.
 type File int
 
 const (
@@ -28,19 +31,21 @@ type Setting struct {
 	Flag string
 	// EnvVars lists environment variables in order of precedence.
 	EnvVars []string
-	// File is the file `config set` writes to. Settings stored in the
-	// credentials file are also read from the config file as a fallback.
+	// File is the file `config set` writes to.
 	File File
 	// Secret values are masked in output.
 	Secret bool
 }
 
 const (
-	// AccessTokenSetting and AccessTokenExpiresAtSetting hold short-lived
-	// credentials written by `bifrost auth` commands. A future interactive
-	// login flow stores its tokens here as well.
+	// AccessTokenSetting and the settings below hold a short-lived credential
+	// written by `bifrost auth` commands together with its expiry and the
+	// portal and organization it was issued for, so it is never reused
+	// elsewhere. A future interactive login flow stores its tokens here as well.
 	AccessTokenSetting          = "access_token"
 	AccessTokenExpiresAtSetting = "access_token_expires_at"
+	AccessTokenServerURLSetting = "access_token_server_url"
+	AccessTokenOrgIDSetting     = "access_token_org_id"
 )
 
 // Settings is the registry of every configurable value. Adding a setting here
@@ -56,6 +61,8 @@ var Settings = []Setting{
 	{Name: "git_repo_path", Flag: "git-repo-path", EnvVars: []string{"BIFROST_GIT_REPO_PATH"}, File: ConfigFile},
 	{Name: AccessTokenSetting, File: CredentialsFile, Secret: true},
 	{Name: AccessTokenExpiresAtSetting, File: CredentialsFile},
+	{Name: AccessTokenServerURLSetting, File: CredentialsFile},
+	{Name: AccessTokenOrgIDSetting, File: CredentialsFile},
 }
 
 // Names lists the registered setting names in order.
@@ -137,18 +144,29 @@ func (r Resolved) DescribeSource() string {
 // from the environment and the profile to flags that were not given on the
 // command line, so the variables bound to the flags end up with the resolved
 // values. Every Setting with a Flag must be registered in fl.
+//
+// Every setting is returned even when some values cannot be parsed: those are
+// reported in the returned error (one joined error per invalid value) and the
+// flag keeps its default, so callers that only inspect or repair the
+// configuration can carry on.
 func Resolve(fl *flag.FlagSet, cfg *Config) ([]Resolved, error) {
 	resolved := make([]Resolved, 0, len(Settings))
+	var invalid []error
 	for _, s := range Settings {
 		r := resolve(fl, cfg, s)
 		if s.Flag != "" && (r.Source == SourceEnvironment || r.Source.FromFile()) {
-			if err := fl.Lookup(s.Flag).Value.Set(r.Value); err != nil {
-				return nil, fmt.Errorf("invalid value %q for %s from %s: %w", r.Value, s.Name, r.DescribeSource(), err)
+			f := fl.Lookup(s.Flag)
+			previous := f.Value.String()
+			if err := f.Value.Set(r.Value); err != nil {
+				// The standard flag values overwrite the variable even when parsing
+				// fails, so put the default back and report the problem.
+				_ = f.Value.Set(previous)
+				invalid = append(invalid, fmt.Errorf("invalid value %q for %s from %s: %w", r.Value, s.Name, r.DescribeSource(), err))
 			}
 		}
 		resolved = append(resolved, r)
 	}
-	return resolved, nil
+	return resolved, errors.Join(invalid...)
 }
 
 func resolve(fl *flag.FlagSet, cfg *Config, s Setting) Resolved {
