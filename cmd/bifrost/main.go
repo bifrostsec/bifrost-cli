@@ -6,7 +6,7 @@ package main
 import (
 	"os"
 
-	"github.com/bifrostsec/bifrost-cli/internal/bifrost"
+	"github.com/bifrostsec/bifrost-cli/internal/cli"
 )
 
 var (
@@ -15,5 +15,5 @@ var (
 )
 
 func main() {
-	os.Exit(bifrost.CLI(Version, GitCommit, os.Args[1:]))
+	os.Exit(cli.CLI(Version, GitCommit, os.Args[1:]))
 }

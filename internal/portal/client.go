@@ -1,7 +1,8 @@
 // Copyright 2026 bifrost security
 // SPDX-License-Identifier: Apache-2.0
 
-package bifrost
+// Package portal is the HTTP client for the bifrost portal integration API.
+package portal
 
 import (
 	"context"
@@ -22,11 +23,13 @@ const (
 	userAgentProduct     = "bifrost-cli"
 )
 
-type API interface {
+// Client uploads SBOMs to the portal.
+type Client interface {
 	UploadSBOMFile(ctx context.Context, service string, serviceVersion string, filePath string) error
 }
 
-type APIConfig struct {
+// ClientConfig configures a Client.
+type ClientConfig struct {
 	ServerURL     string
 	Token         string
 	RetryAttempts int
@@ -40,12 +43,13 @@ type APIConfig struct {
 	CliVersion    string
 }
 
-type api struct {
+type client struct {
 	client http.Client
-	cfg    APIConfig
+	cfg    ClientConfig
 }
 
-func NewAPI(cfg APIConfig) API {
+// NewClient returns a Client that retries transient failures according to cfg.
+func NewClient(cfg ClientConfig) Client {
 	if cfg.RetryAttempts < 0 {
 		cfg.RetryAttempts = 0
 	}
@@ -58,13 +62,13 @@ func NewAPI(cfg APIConfig) API {
 	if cfg.RetryOutput == nil {
 		cfg.RetryOutput = os.Stderr
 	}
-	return &api{
+	return &client{
 		client: http.Client{Timeout: cfg.HTTPTimeout},
 		cfg:    cfg,
 	}
 }
 
-func (a *api) UploadSBOMFile(ctx context.Context, service string, serviceVersion string, filePath string) error {
+func (a *client) UploadSBOMFile(ctx context.Context, service string, serviceVersion string, filePath string) error {
 	if serviceVersion == "" && a.cfg.Image == "" {
 		return fmt.Errorf("either service version or image is required")
 	}
@@ -89,7 +93,7 @@ func (a *api) UploadSBOMFile(ctx context.Context, service string, serviceVersion
 	})
 }
 
-func (a *api) uploadSBOM(ctx context.Context, service string, serviceVersion string, sourceLabel string, openBody func() (io.ReadCloser, error)) error {
+func (a *client) uploadSBOM(ctx context.Context, service string, serviceVersion string, sourceLabel string, openBody func() (io.ReadCloser, error)) error {
 	var err error
 	for attempt := 0; attempt <= a.cfg.RetryAttempts; attempt++ {
 		err = a.uploadSBOMOnce(ctx, service, serviceVersion, sourceLabel, openBody)
@@ -111,7 +115,7 @@ func (a *api) uploadSBOM(ctx context.Context, service string, serviceVersion str
 	return err
 }
 
-func (a *api) printRetryMessage(sourceLabel string, err error, retryNumber int) {
+func (a *client) printRetryMessage(sourceLabel string, err error, retryNumber int) {
 	if a.cfg.RetryOutput == nil {
 		return
 	}
@@ -126,7 +130,7 @@ func (a *api) printRetryMessage(sourceLabel string, err error, retryNumber int) 
 	)
 }
 
-func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion string, sourceLabel string, openBody func() (io.ReadCloser, error)) error {
+func (a *client) uploadSBOMOnce(ctx context.Context, service string, serviceVersion string, sourceLabel string, openBody func() (io.ReadCloser, error)) error {
 	file, err := openBody()
 	if err != nil {
 		return err
@@ -169,7 +173,7 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 
 	req.Header.Add("Authorization", "Bearer "+a.cfg.Token)
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Set("User-Agent", userAgent(a.cfg.CliVersion))
+	req.Header.Set("User-Agent", UserAgent(a.cfg.CliVersion))
 
 	resp, err := a.client.Do(req)
 	if err != nil {
@@ -191,7 +195,8 @@ func (a *api) uploadSBOMOnce(ctx context.Context, service string, serviceVersion
 	return nil
 }
 
-func userAgent(version string) string {
+// UserAgent is the User-Agent header value for the given CLI version.
+func UserAgent(version string) string {
 	if version == "" {
 		return userAgentProduct
 	}

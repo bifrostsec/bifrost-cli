@@ -1,7 +1,9 @@
 // Copyright 2026 bifrost security
 // SPDX-License-Identifier: Apache-2.0
 
-package bifrost
+// Package flagutil extends the standard flag package with aliases and helpers
+// for inspecting how a flag was set.
+package flagutil
 
 import (
 	"flag"
@@ -13,6 +15,8 @@ import (
 	"strings"
 )
 
+// AliasedFlagSet is a flag.FlagSet whose boolean flags can have short aliases
+// that are grouped with the main flag in the usage output.
 type AliasedFlagSet struct {
 	*flag.FlagSet
 	aliasGroups map[string][]string
@@ -70,7 +74,7 @@ func printFlagUsage(output io.Writer, name string, f *flag.Flag) {
 		_, _ = fmt.Fprintf(output, " %s", valueName)
 	}
 	_, _ = fmt.Fprintf(output, "\n    %s", usage)
-	if hasDefaultValue(f) {
+	if HasDefaultValue(f) {
 		format := " (default %s)"
 		if valueName == "string" {
 			format = " (default %q)"
@@ -80,8 +84,8 @@ func printFlagUsage(output io.Writer, name string, f *flag.Flag) {
 	_, _ = fmt.Fprintln(output)
 }
 
-// hasDefaultValue reports whether f's default differs from its type's zero value
-func hasDefaultValue(f *flag.Flag) bool {
+// HasDefaultValue reports whether f's default differs from its type's zero value
+func HasDefaultValue(f *flag.Flag) bool {
 	valueType := reflect.TypeOf(f.Value)
 	zeroValue := reflect.Zero(valueType)
 	if valueType.Kind() == reflect.Pointer {
@@ -90,4 +94,15 @@ func hasDefaultValue(f *flag.Flag) bool {
 
 	defaultValue, ok := zeroValue.Interface().(flag.Value)
 	return !ok || f.DefValue != defaultValue.String()
+}
+
+// IsSet reports whether the named flag was given on the command line.
+func IsSet(fl *flag.FlagSet, name string) bool {
+	isSet := false
+	fl.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			isSet = true
+		}
+	})
+	return isSet
 }

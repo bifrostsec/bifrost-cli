@@ -2,42 +2,74 @@
 
 ## Project Overview
 
-bifrost is a command-line tool for interacting with the bifrost security platform.
-T
+bifrost is a command-line tool for interacting with the bifrost security platform. It uploads SBOMs to the portal,
+manages local configuration and credentials in the style of the AWS CLI, and can authenticate in GitHub Actions by
+exchanging the job's OIDC token for a portal access token.
 
 ## Application Structure
 
 ### Main Entry Point
 
-The application runs from `main.go`, which:
-- Exits to the internal `bifrost.CLI()` function for entry point
-- Implements the three-layer architecture pattern:
+The application runs from `cmd/bifrost/main.go`, which delegates to `cli.CLI()` in `internal/cli`. The code is
+split into packages along the three-layer architecture pattern; dependencies only point downwards in this list:
 
-1. **Input Layer** (`bifrost.go` `fromArgs` method)
-   - Handles user input via `flag.NewFlagSet`
-   - Transforms raw flags into normalized parameters
-   - Validates required arguments
-   - Retrieves tokens from env vars
+1. **Input and output layer** (`internal/cli`)
+   - Registers flags via `flag.NewFlagSet` (`RegisterOptions`) and resolves them into the `Options` struct
+   - `ResolveOptions` layers command-line flags, environment variables, the selected profile of the
+     config/credentials files and built-in defaults, in that order of precedence, then validates
+   - Dispatches to a `command.Task`, prints errors, usage and chooses exit codes
 
-2. **Task Layer** (`bifrost.go` methods)
-   - Core SBOM upload functionality
-   - Performs HTTP POST requests to API endpoint
-   - Manages file I/O operations
-   - Implements retry and error-handling logic
+2. **Task layer** (`internal/command`)
+   - One `Task` per command: `NewSBOMUpload`, `NewConfig`, `NewAuthGitHubActions`, `NewAuthToken`
+   - Tasks receive explicit option structs and an `auth.Resolver`; they never read flags or the environment
 
-3. **Output Layer**
-   - User-facing error messages
-   - Success notifications
-   - Usage information
+3. **Domain packages**
+   - `internal/auth`: `Credentials`, `Resolver`, the AWS-style credential `Chain`, GitHub Actions OIDC token
+     exchange (`GitHubActionsExchange`), `StoreAccessToken`
+   - `internal/oauth2`: client for the portal token endpoint (RFC 6749 responses, RFC 8693 token exchange)
+   - `internal/portal`: HTTP client for the SBOM upload API with retries, defaults and `UserAgent`
+   - `internal/config`: settings registry (`Settings`), config/credentials files and profiles (`Config`),
+     precedence resolution (`Resolve`), `MaskSecret`, `DisplayPath`
+   - `internal/git`: Git metadata discovery
+   - `internal/ini`: INI reader/writer preserving comments and order
+   - `internal/flagutil`: `AliasedFlagSet`, `IsSet`, `HasDefaultValue`
+   - `internal/testutil`: test-only helpers (`IsolateEnvironment`, `WriteConfigFiles`, `WriteSBOM`)
 
 ### Key Components
 
-- **CLI function**: Entry point that orchestrates the three layers
-- **SBOMUpload struct**: Holds normalized app state (Token, Path)
-- **fromArgs method**: Input layer - parses flags and environment variables
-- **run method**: Task layer - coordinates upload execution
-- **upload method**: Core task logic - HTTP request handling
-- **printUsage method**: Output layer - displays help text
+- **cli.CLI**: entry point that parses flags, resolves options and dispatches to a task
+- **cli.Options**: normalized app state for one invocation; mapped onto `command.SBOMUploadOptions` and
+  `auth.GitHubActionsOptions` by small methods in `options.go`
+- **config.Settings**: table of every configurable value with its file key, flag and environment variables;
+  drives both resolution and the `config` command
+- **config.Config**: the parsed `~/.bifrost/config` and `~/.bifrost/credentials` files for a profile
+- **auth.Chain**: AWS-style provider chain producing the bearer token
+- **auth.GitHubActionsExchange** with **oauth2.Client**: fetches the GitHub OIDC token and exchanges it at
+  `/oauth2/token` (RFC 8693)
+- **command.\***: command implementations behind the `Task` interface
+- **cli.printUsage**: help text
+
+### Configuration and Credentials
+
+- Files follow the AWS CLI layout: `~/.bifrost/config` for general settings, `~/.bifrost/credentials` for secrets,
+  INI formatted (`internal/ini`), profiles as `[default]` / `[profile <name>]` (config) and `[<name>]` (credentials).
+  `BIFROST_CONFIG_FILE`, `BIFROST_SHARED_CREDENTIALS_FILE`, `BIFROST_PROFILE` and `--profile` override locations
+  and the profile.
+- Precedence: command-line flag > environment variable > credentials file > config file > default.
+- **Adding a setting**: add one entry to `config.Settings` in `internal/config/settings.go` and, if it should have a
+  flag, register it in `cli.RegisterOptions` (a test asserts every setting's flag exists). Resolution,
+  `config list|get|set|unset` and masking follow from the registry.
+- Credential chain order: API key (flag/env/file) > unexpired `access_token` stored in the profile > GitHub Actions
+  OIDC token exchange (when `ACTIONS_ID_TOKEN_REQUEST_URL`/`ACTIONS_ID_TOKEN_REQUEST_TOKEN` are set and an
+  `org_id` is configured). `bifrost auth github-actions` performs the exchange and stores `access_token` and
+  `access_token_expires_at` in the credentials file; `bifrost auth token` prints the resolved token.
+- A future interactive OAuth2 login (`bifrost auth login`) should store its tokens (`access_token`,
+  `access_token_expires_at`, `refresh_token`) in the same credentials profile via `auth.StoreAccessToken`, plug
+  into `auth.Chain`, and add its grant to `oauth2.Client`, which already handles token endpoint requests and
+  error responses.
+- Tests must not touch the developer's real files: each package's `TestMain` calls `testutil.IsolateEnvironment`,
+  which points `HOME` at a temporary directory and clears all CLI environment variables, and
+  `testutil.WriteConfigFiles` sets the file override variables.
 
 ### Architecture Pattern
 
@@ -51,7 +83,12 @@ The application follows the three-layer architecture pattern:
 
 ### Endpoints
 
-- **Upload**: `POST https://portal.bifrostsec.com/api/v2/sbom`
+- **Upload**: `POST https://portal.bifrostsec.com/api/v2/service/{service}/version/sbom`
+- **Token exchange**: `POST https://portal.bifrostsec.com/oauth2/token` with
+  `grant_type=urn:ietf:params:oauth:grant-type:token-exchange`, `subject_token_type=urn:ietf:params:oauth:token-type:jwt`
+  and `subject_token=<GitHub OIDC token>` (form encoded). The GitHub OIDC token must carry the bifrost organization id
+  as audience. The response is a 10 minute `Bearer` access token for the integration API. Errors follow RFC 6749
+  (`error`, `error_description`); the endpoint is rate limited to 10 requests per minute per client.
 
 ### Required Headers
 
@@ -94,10 +131,17 @@ make test
 
 ## Environment Variables
 
-The application supports these environment variables for token authentication:
+Every setting has a `BIFROST_*` environment variable, which overrides the configuration files but not command-line flags:
 
-- `BIFROST_API_TOKEN`: Alternative way to provide the Bifrost API token
-- `BIFROST_KEY`: Alternative way to provide the bearer token for authentication (same token used for both)
+- `BIFROST_API_KEY`: Bifrost API token used as bearer token
+- `BIFROST_SERVER_URL` (legacy alias `SERVER_URL`): portal URL
+- `BIFROST_ORG_ID`: organization id used as audience for the GitHub Actions OIDC token exchange
+- `BIFROST_RETRY_ATTEMPTS`, `BIFROST_RETRY_DELAY`, `BIFROST_HTTP_TIMEOUT`: HTTP behaviour
+- `BIFROST_GIT_REPO_PATH`: repository path for Git metadata detection
+- `BIFROST_PROFILE`, `BIFROST_CONFIG_FILE`, `BIFROST_SHARED_CREDENTIALS_FILE`: profile and file locations
+- `SERVICE`, `SERVICE_VERSION`, `IMAGE`: per-upload values (not stored in configuration files)
+- `ACTIONS_ID_TOKEN_REQUEST_URL`, `ACTIONS_ID_TOKEN_REQUEST_TOKEN`, `GITHUB_ACTIONS`: provided by GitHub Actions,
+  read to perform the OIDC token exchange
 
 ## Git Repository
 
@@ -123,17 +167,28 @@ The application supports these environment variables for token authentication:
 
 ```
 .
-├── bifrost/
-│   └── bifrost.go    # Three-layer architecture implementation
-├── main.go            # Entry point
-├── go.mod             # Module configuration
-├── Makefile           # Build automation
-└── README.md          # User documentation
+├── cmd/bifrost/main.go          # Entry point
+├── internal/
+│   ├── cli/                     # Flag parsing, option resolution, dispatch, usage output
+│   ├── command/                 # Tasks: sbom upload, config, auth github-actions, auth token
+│   ├── auth/                    # Credential chain, GitHub Actions OIDC exchange, token storage
+│   ├── oauth2/                  # OAuth 2.0 token endpoint client (RFC 8693 token exchange)
+│   ├── portal/                  # Upload HTTP client with retries
+│   ├── config/                  # Settings registry, config/credentials files, precedence
+│   ├── git/                     # Git metadata detection
+│   ├── ini/                     # INI reader/writer preserving comments and order
+│   ├── flagutil/                # Flag aliases and helpers
+│   └── testutil/                # Shared test helpers
+├── go.mod                       # Module configuration
+├── Makefile                     # Build automation
+└── README.md                    # User documentation
 ```
 
 ## Important Notes
 
-1. **Token Requirement**: Token `BIFROST_KEY` serves as API bearer token - the application exits with an error if token is missing
+1. **Credential Requirement**: commands that call the portal need a bearer token from the credential chain
+   (API key, stored access token, or GitHub Actions OIDC exchange); the application exits with an error
+   explaining every source it tried when none is available
 2. **Architecture Pattern**: Implements the three-layer architecture (input, task, output) based on recommended CLI design patterns
 3. **Error Handling**: Implements proper error propagation for file operations and HTTP requests
 4. **No Flags Package Global Variables**: Uses local flags through `flag.NewFlagSet()` to avoid global state
