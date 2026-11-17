@@ -163,8 +163,10 @@ func (c *Chain) cachedAccessToken() (Credentials, error) {
 }
 
 // sameServerURL reports whether two portal URLs address the same server.
-// Scheme and host are compared case-insensitively and a trailing slash is
-// ignored, but the path keeps its case because paths may be case-sensitive.
+// Scheme and host are compared case-insensitively and a literal trailing
+// slash is ignored. The path is otherwise compared exactly as written, with
+// its case and percent-encoding, because the upload client sends it verbatim
+// and a proxy may route "%2F" differently from "/".
 func sameServerURL(a, b string) bool {
 	return normalizeServerURL(a) == normalizeServerURL(b)
 }
@@ -175,11 +177,16 @@ func normalizeServerURL(raw string) string {
 	if err != nil || u.Host == "" {
 		return strings.TrimRight(raw, "/")
 	}
-	u.Scheme = strings.ToLower(u.Scheme)
-	u.Host = strings.ToLower(u.Host)
-	u.Path = strings.TrimRight(u.Path, "/")
-	u.RawPath = ""
-	return u.String()
+	normalized := *u
+	normalized.Scheme = strings.ToLower(u.Scheme)
+	normalized.Host = strings.ToLower(u.Host)
+	escaped := strings.TrimRight(u.EscapedPath(), "/")
+	normalized.RawPath = escaped
+	normalized.Path, err = url.PathUnescape(escaped)
+	if err != nil {
+		normalized.Path = escaped
+	}
+	return normalized.String()
 }
 
 func (c *Chain) printExchangeMessage(credentials Credentials) {
