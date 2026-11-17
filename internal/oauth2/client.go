@@ -84,6 +84,21 @@ func (c *Client) ExchangeToken(ctx context.Context, subjectToken string) (TokenR
 	return c.Token(ctx, form)
 }
 
+// httpClient returns a copy of the configured client that does not follow
+// redirects. A token request carries the subject token in its body, which a
+// 307 or 308 redirect would replay to whatever host the response names.
+func (c *Client) httpClient() *http.Client {
+	base := c.HTTPClient
+	if base == nil {
+		base = http.DefaultClient
+	}
+	client := *base
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return &client
+}
+
 // Token posts an access token request with the given form parameters.
 func (c *Client) Token(ctx context.Context, form url.Values) (TokenResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.TokenEndpoint(), strings.NewReader(form.Encode()))
@@ -94,11 +109,7 @@ func (c *Client) Token(ctx context.Context, form url.Values) (TokenResponse, err
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", c.UserAgent)
 
-	httpClient := c.HTTPClient
-	if httpClient == nil {
-		httpClient = http.DefaultClient
-	}
-	resp, err := httpClient.Do(req)
+	resp, err := c.httpClient().Do(req)
 	if err != nil {
 		return TokenResponse{}, fmt.Errorf("failed to send token request: %w", err)
 	}
@@ -107,7 +118,9 @@ func (c *Client) Token(ctx context.Context, form url.Values) (TokenResponse, err
 
 	if resp.StatusCode != http.StatusOK {
 		oauthErr := &Error{StatusCode: resp.StatusCode}
-		if err := json.Unmarshal(body, oauthErr); err != nil || oauthErr.Code == "" {
+		if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+			oauthErr.Description = fmt.Sprintf("redirect to %q is not followed for token requests", resp.Header.Get("Location"))
+		} else if err := json.Unmarshal(body, oauthErr); err != nil || oauthErr.Code == "" {
 			oauthErr.Description = strings.TrimSpace(string(body))
 		}
 		if resp.StatusCode == http.StatusTooManyRequests {

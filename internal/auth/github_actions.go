@@ -76,7 +76,12 @@ func (e GitHubActionsEnvironment) FetchIDToken(ctx context.Context, client *http
 	if client == nil {
 		client = http.DefaultClient
 	}
-	resp, err := client.Do(req)
+	// The request carries the job's bearer token; never follow a redirect with it.
+	noRedirect := *client
+	noRedirect.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	resp, err := noRedirect.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("failed to request GitHub OIDC token: %w", err)
 	}

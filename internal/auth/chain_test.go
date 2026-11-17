@@ -125,6 +125,17 @@ func TestChain_ReusesCachedAccessTokenOnlyForItsServerAndOrganization(t *testing
 	assert.Equal(t, "cached-token", credentials.Token)
 }
 
+func TestSameServerURL(t *testing.T) {
+	assert.True(t, sameServerURL("https://Portal.Example.com/", "HTTPS://portal.example.com"), "scheme and host are case-insensitive, trailing slash ignored")
+	assert.True(t, sameServerURL("https://portal.example.com/PortalA/", "https://portal.example.com/PortalA"))
+	assert.True(t, sameServerURL(" https://portal.example.com:8443 ", "https://portal.example.com:8443/"))
+	assert.False(t, sameServerURL("https://portal.example.com/PortalA", "https://portal.example.com/portala"), "paths are case-sensitive")
+	assert.False(t, sameServerURL("https://portal.example.com", "http://portal.example.com"), "no scheme downgrade")
+	assert.False(t, sameServerURL("https://portal.example.com", "https://portal.example.com:8443"))
+	assert.False(t, sameServerURL("https://portal.example.com", "https://portal.example.org"))
+	assert.True(t, sameServerURL("not a url/", "not a url"), "unparsable values fall back to a plain comparison")
+}
+
 func TestCredentials_Valid(t *testing.T) {
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
 	assert.False(t, Credentials{}.Valid(now), "no token")

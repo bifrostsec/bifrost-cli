@@ -6,8 +6,10 @@ package oauth2
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -44,6 +46,30 @@ func TestClient_ExchangeToken(t *testing.T) {
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
 	assert.Equal(t, now.Add(10*time.Minute), token.ExpiresAt(now))
 	assert.True(t, TokenResponse{}.ExpiresAt(now).IsZero())
+}
+
+func TestClient_DoesNotFollowRedirects(t *testing.T) {
+	var leaked atomic.Bool
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		leaked.Store(true)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer other.Close()
+	for _, status := range []int{http.StatusMovedPermanently, http.StatusTemporaryRedirect, http.StatusPermanentRedirect} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, other.URL+TokenEndpointPath, status)
+			}))
+			defer server.Close()
+			client := &Client{HTTPClient: server.Client(), ServerURL: server.URL, UserAgent: "bifrost-cli/1.0"}
+
+			_, err := client.ExchangeToken(context.Background(), "subject")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), fmt.Sprintf("token endpoint returned %d: redirect to %q is not followed", status, other.URL+TokenEndpointPath))
+			assert.False(t, leaked.Load(), "the subject token must not be replayed to the redirect target")
+			assert.Nil(t, client.HTTPClient.CheckRedirect, "the caller's client is left untouched")
+		})
+	}
 }
 
 func TestClient_ErrorResponses(t *testing.T) {

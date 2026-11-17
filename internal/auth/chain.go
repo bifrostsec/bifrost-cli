@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 	"time"
 
@@ -161,12 +162,24 @@ func (c *Chain) cachedAccessToken() (Credentials, error) {
 	return cached, nil
 }
 
-// sameServerURL compares portal URLs ignoring case and trailing slashes.
+// sameServerURL reports whether two portal URLs address the same server.
+// Scheme and host are compared case-insensitively and a trailing slash is
+// ignored, but the path keeps its case because paths may be case-sensitive.
 func sameServerURL(a, b string) bool {
-	normalize := func(u string) string {
-		return strings.TrimRight(strings.ToLower(strings.TrimSpace(u)), "/")
+	return normalizeServerURL(a) == normalizeServerURL(b)
+}
+
+func normalizeServerURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return strings.TrimRight(raw, "/")
 	}
-	return normalize(a) == normalize(b)
+	u.Scheme = strings.ToLower(u.Scheme)
+	u.Host = strings.ToLower(u.Host)
+	u.Path = strings.TrimRight(u.Path, "/")
+	u.RawPath = ""
+	return u.String()
 }
 
 func (c *Chain) printExchangeMessage(credentials Credentials) {

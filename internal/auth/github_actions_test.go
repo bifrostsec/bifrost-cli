@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -74,6 +75,25 @@ func TestGitHubActionsExchange_Exchange(t *testing.T) {
 		ServerURL: portal.URL,
 		OrgID:     "org_1",
 	}, credentials)
+}
+
+func TestGitHubActionsEnvironment_FetchIDTokenDoesNotFollowRedirects(t *testing.T) {
+	var leaked atomic.Bool
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		leaked.Store(true)
+		_, _ = w.Write([]byte(`{"value":"stolen"}`))
+	}))
+	defer other.Close()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL, http.StatusTemporaryRedirect)
+	}))
+	defer server.Close()
+	env := GitHubActionsEnvironment{RequestURL: server.URL, RequestToken: "t"}
+
+	_, err := env.FetchIDToken(context.Background(), server.Client(), "org_1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "GitHub OIDC token request failed: 307 Temporary Redirect")
+	assert.False(t, leaked.Load(), "the request token must not be sent to the redirect target")
 }
 
 func TestGitHubActionsEnvironment_FetchIDTokenErrors(t *testing.T) {
