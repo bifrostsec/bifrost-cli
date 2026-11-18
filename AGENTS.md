@@ -27,6 +27,7 @@ split into packages along the three-layer architecture pattern; dependencies onl
    - `internal/auth`: `Credentials`, `Resolver`, the AWS-style credential `Chain`, GitHub Actions OIDC token
      exchange (`GitHubActionsExchange`), `StoreAccessToken`
    - `internal/oauth2`: client for the portal token endpoint (RFC 6749 responses, RFC 8693 token exchange)
+   - `internal/retry`: retry policy with exponential backoff and `Retry-After` support, used by the auth requests
    - `internal/portal`: HTTP client for the SBOM upload API with retries, defaults and `UserAgent`
    - `internal/config`: settings registry (`Settings`), config/credentials files and profiles (`Config`),
      precedence resolution (`Resolve`), `MaskSecret`, `DisplayPath`
@@ -71,6 +72,9 @@ split into packages along the three-layer architecture pattern; dependencies onl
   issued for.
   `bifrost auth token` prints the resolved token. The upload task resolves credentials lazily through a
   `credentialCache`, after stdin is staged and again whenever the current token is about to expire.
+- The OIDC token request and the token exchange retry network errors, 408, 429 and 5xx through `retry.Policy`
+  (`retry_attempts`, `retry_delay` with doubling, `Retry-After` honoured); 4xx other than 408/429 are final.
+  Mark a failure transient with `retry.Transient`.
 - `cli.ResolveOptions` never fails on an invalid stored value; it records it in `ResolvedOptions.Invalid` and
   `cli.ValidateOptions` rejects it for every command except `config`, which prints a warning instead so the value
   can be repaired.
@@ -184,6 +188,7 @@ Every setting has a `BIFROST_*` environment variable, which overrides the config
 │   ├── command/                 # Tasks: sbom upload, config, auth github-actions, auth token
 │   ├── auth/                    # Credential chain, GitHub Actions OIDC exchange, token storage
 │   ├── oauth2/                  # OAuth 2.0 token endpoint client (RFC 8693 token exchange)
+│   ├── retry/                   # Retry policy: backoff, Retry-After, transient errors
 │   ├── portal/                  # Upload HTTP client with retries
 │   ├── config/                  # Settings registry, config/credentials files, precedence
 │   ├── git/                     # Git metadata detection

@@ -26,9 +26,11 @@ type ChainOptions struct {
 	// the GitHub Actions OIDC token exchange issues tokens for them.
 	ServerURL string
 	OrgID     string
-	// HTTPTimeout and UserAgent apply to the OIDC token exchange.
-	HTTPTimeout time.Duration
-	UserAgent   string
+	// HTTPTimeout, UserAgent, RetryAttempts and RetryDelay apply to the OIDC token exchange.
+	HTTPTimeout   time.Duration
+	UserAgent     string
+	RetryAttempts int
+	RetryDelay    time.Duration
 	// Output receives informational messages, nil disables them.
 	Output io.Writer
 }
@@ -60,10 +62,13 @@ type Chain struct {
 // NewChain builds the chain from resolved settings and the current environment.
 func NewChain(opts ChainOptions) *Chain {
 	githubActions, hint := NewGitHubActionsExchange(GitHubActionsOptions{
-		ServerURL:   opts.ServerURL,
-		OrgID:       opts.OrgID,
-		HTTPTimeout: opts.HTTPTimeout,
-		UserAgent:   opts.UserAgent,
+		ServerURL:     opts.ServerURL,
+		OrgID:         opts.OrgID,
+		HTTPTimeout:   opts.HTTPTimeout,
+		UserAgent:     opts.UserAgent,
+		RetryAttempts: opts.RetryAttempts,
+		RetryDelay:    opts.RetryDelay,
+		Output:        opts.Output,
 	})
 	return &Chain{
 		profile:              opts.Profile,

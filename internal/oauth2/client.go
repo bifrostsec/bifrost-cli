@@ -15,6 +15,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/bifrostsec/bifrost-cli/internal/retry"
 )
 
 const (
@@ -67,6 +69,9 @@ type Client struct {
 	HTTPClient *http.Client
 	ServerURL  string
 	UserAgent  string
+	// Retry governs how network errors, 408, 429 and 5xx responses are
+	// retried; the zero value gives up after the first failure.
+	Retry retry.Policy
 }
 
 // TokenEndpoint is the absolute token endpoint URL.
@@ -99,8 +104,19 @@ func (c *Client) httpClient() *http.Client {
 	return &client
 }
 
-// Token posts an access token request with the given form parameters.
+// Token posts an access token request with the given form parameters,
+// retrying transient failures according to Retry.
 func (c *Client) Token(ctx context.Context, form url.Values) (TokenResponse, error) {
+	var token TokenResponse
+	err := c.Retry.Do(ctx, func(ctx context.Context) error {
+		var err error
+		token, err = c.token(ctx, form)
+		return err
+	})
+	return token, err
+}
+
+func (c *Client) token(ctx context.Context, form url.Values) (TokenResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.TokenEndpoint(), strings.NewReader(form.Encode()))
 	if err != nil {
 		return TokenResponse{}, fmt.Errorf("failed to create token request: %w", err)
@@ -111,7 +127,7 @@ func (c *Client) Token(ctx context.Context, form url.Values) (TokenResponse, err
 
 	resp, err := c.httpClient().Do(req)
 	if err != nil {
-		return TokenResponse{}, fmt.Errorf("failed to send token request: %w", err)
+		return TokenResponse{}, retry.Transient(fmt.Errorf("failed to send token request: %w", err), 0)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
@@ -124,7 +140,10 @@ func (c *Client) Token(ctx context.Context, form url.Values) (TokenResponse, err
 			oauthErr.Description = strings.TrimSpace(string(body))
 		}
 		if resp.StatusCode == http.StatusTooManyRequests {
-			oauthErr.Description = strings.TrimSpace(oauthErr.Description + " (rate limited, retry later)")
+			oauthErr.Description = strings.TrimSpace(oauthErr.Description + " (rate limited)")
+		}
+		if retry.IsTransientStatus(resp.StatusCode) {
+			return TokenResponse{}, retry.Transient(oauthErr, retry.RetryAfter(resp, time.Now()))
 		}
 		return TokenResponse{}, oauthErr
 	}

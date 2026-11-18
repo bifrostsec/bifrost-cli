@@ -60,8 +60,8 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.StringVar(&opts.service, "service", "", "Name of the service (or SERVICE environment variable)")
 	fl.StringVar(&opts.serviceVersion, "service-version", "", "Service version for the uploaded SBOM (or SERVICE_VERSION environment variable); required unless an image is provided")
 	fl.StringVar(&opts.image, "image", "", "Container image reference for the uploaded SBOM (or IMAGE environment variable); required unless a service version is provided")
-	fl.IntVar(&opts.retryAttempts, "retry-attempts", portal.DefaultRetryAttempts, "Number of retry attempts for transient upload failures (or BIFROST_RETRY_ATTEMPTS environment variable, or retry_attempts setting)")
-	fl.DurationVar(&opts.retryDelay, "retry-delay", portal.DefaultRetryDelay, "Delay between upload retry attempts (or BIFROST_RETRY_DELAY environment variable, or retry_delay setting)")
+	fl.IntVar(&opts.retryAttempts, "retry-attempts", portal.DefaultRetryAttempts, "Number of retry attempts for transient upload and authentication failures (or BIFROST_RETRY_ATTEMPTS environment variable, or retry_attempts setting)")
+	fl.DurationVar(&opts.retryDelay, "retry-delay", portal.DefaultRetryDelay, "Delay between retry attempts; authentication retries double it each time (or BIFROST_RETRY_DELAY environment variable, or retry_delay setting)")
 	fl.DurationVar(&opts.httpTimeout, "http-timeout", portal.DefaultHTTPTimeout, "Maximum duration to wait for an HTTP request (or BIFROST_HTTP_TIMEOUT environment variable, or http_timeout setting)")
 	fl.StringVar(&opts.gitBranch, "git-branch", "", "Optional Git branch name for the uploaded SBOM")
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
@@ -221,22 +221,27 @@ func (o Options) sbomUploadOptions(cliVersion string) command.SBOMUploadOptions 
 // githubActionsOptions maps the resolved options onto the OIDC token exchange inputs.
 func (o Options) githubActionsOptions(cliVersion string) auth.GitHubActionsOptions {
 	return auth.GitHubActionsOptions{
-		ServerURL:   o.ServerURL,
-		OrgID:       o.orgID,
-		HTTPTimeout: o.httpTimeout,
-		UserAgent:   portal.UserAgent(cliVersion),
+		ServerURL:     o.ServerURL,
+		OrgID:         o.orgID,
+		HTTPTimeout:   o.httpTimeout,
+		UserAgent:     portal.UserAgent(cliVersion),
+		RetryAttempts: o.retryAttempts,
+		RetryDelay:    o.retryDelay,
+		Output:        os.Stderr,
 	}
 }
 
 // credentialChain builds the credential provider chain for this invocation.
 func (o Options) credentialChain(resolved *ResolvedOptions, cliVersion string) *auth.Chain {
 	return auth.NewChain(auth.ChainOptions{
-		Profile:     o.profile,
-		Settings:    resolved.Settings,
-		ServerURL:   o.ServerURL,
-		OrgID:       o.orgID,
-		HTTPTimeout: o.httpTimeout,
-		UserAgent:   portal.UserAgent(cliVersion),
-		Output:      os.Stderr,
+		Profile:       o.profile,
+		Settings:      resolved.Settings,
+		ServerURL:     o.ServerURL,
+		OrgID:         o.orgID,
+		HTTPTimeout:   o.httpTimeout,
+		UserAgent:     portal.UserAgent(cliVersion),
+		RetryAttempts: o.retryAttempts,
+		RetryDelay:    o.retryDelay,
+		Output:        os.Stderr,
 	})
 }

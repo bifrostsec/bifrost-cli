@@ -126,6 +126,32 @@ func TestCLI_UploadExchangesGitHubActionsOIDCTokenAutomatically(t *testing.T) {
 	assert.Contains(t, stderr, "Exchanged GitHub Actions OIDC token for a bifrost access token (organization "+testOrgID+", expires at ")
 }
 
+func TestCLI_UploadRetriesTransientTokenExchangeFailures(t *testing.T) {
+	testutil.WriteConfigFiles(t, "", "")
+	fakeGitHubActions(t, testIDToken)
+	portal := newFakePortal(t)
+	success := portal.tokenResponse
+	portal.tokenResponse = func(w http.ResponseWriter, form map[string]string) {
+		if portal.exchanges.Load() == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		success(w, form)
+	}
+	path := testutil.WriteSBOM(t)
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{
+			"--server-url=" + portal.URL, "--org-id=" + testOrgID, "--retry-attempts=2", "--retry-delay=0s",
+			"--service=test-service", "--service-version=1.0", "sbom", "upload", path,
+		})
+	})
+	assert.Equal(t, 0, exitCode)
+	assert.Equal(t, int32(2), portal.exchanges.Load())
+	assert.Contains(t, stderr, "Token exchange failed: token endpoint returned 503. Retrying in 0s (1/2)")
+	assert.Equal(t, "Bearer "+testExchangedToken, portal.uploadAuthorization())
+}
+
 func TestCLI_UploadPrefersConfiguredAPIKeyOverGitHubActionsExchange(t *testing.T) {
 	testutil.WriteConfigFiles(t, fmt.Sprintf("[default]\norg_id = %s\n", testOrgID), "[default]\napi_key = file-key\n")
 	fakeGitHubActions(t, testIDToken)

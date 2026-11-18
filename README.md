@@ -268,6 +268,11 @@ could outlive the job on a shared runner. Later steps then authenticate without 
 Pass `--store profile` to cache the token in `~/.bifrost/credentials` instead, which is the default outside GitHub
 Actions (for example when testing with a locally served OIDC token).
 
+Both the OIDC token request to GitHub and the exchange at the portal retry transient failures (network errors, 408,
+429 and 5xx responses) according to `--retry-attempts` and `--retry-delay`, doubling the delay on each retry and
+waiting for a `Retry-After` header when the server sends one. The portal rate-limits the token endpoint per source
+IP, which GitHub-hosted runners share, so a 429 there is normal under load.
+
 [RFC 8693]: https://www.rfc-editor.org/rfc/rfc8693.html
 
 ## Options
@@ -281,8 +286,8 @@ Actions (for example when testing with a locally served OIDC token).
 | `--service-version` | Conditional | `SERVICE_VERSION`                                       | Service version for the uploaded SBOM. Required unless an image is provided.                                                                          |
 | `--image`           | Conditional | `IMAGE`                                                 | Container image reference for the uploaded SBOM. Required unless a service version is provided.                                                       |
 | `--server-url`      | No          | `BIFROST_SERVER_URL`, `SERVER_URL`                      | URL to the bifrost server.                                                                                                                            |
-| `--retry-attempts`  | No          | `BIFROST_RETRY_ATTEMPTS`                                | Number of retry attempts for transient upload failures.                                                                                               |
-| `--retry-delay`     | No          | `BIFROST_RETRY_DELAY`                                   | Delay between upload retry attempts.                                                                                                                  |
+| `--retry-attempts`  | No          | `BIFROST_RETRY_ATTEMPTS`                                | Number of retry attempts for transient upload and authentication failures.                                                                            |
+| `--retry-delay`     | No          | `BIFROST_RETRY_DELAY`                                   | Delay between upload retry attempts; authentication retries double it each time and honour `Retry-After`.                                             |
 | `--http-timeout`    | No          | `BIFROST_HTTP_TIMEOUT`                                  | Maximum duration to wait for an HTTP request. Defaults to 30 seconds.                                                                                 |
 | `--git-branch`      | No          |                                                         | Git branch name to attach to the upload.                                                                                                              |
 | `--git-commit-sha`  | No          |                                                         | Git commit SHA to attach to the upload.                                                                                                               |

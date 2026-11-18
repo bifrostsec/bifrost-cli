@@ -4,6 +4,7 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -75,6 +76,66 @@ func TestGitHubActionsExchange_Exchange(t *testing.T) {
 		ServerURL: portal.URL,
 		OrgID:     "org_1",
 	}, credentials)
+}
+
+func TestGitHubActionsExchange_RetriesTransientFailuresOfBothRequests(t *testing.T) {
+	var githubRequests, portalRequests atomic.Int32
+	github := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if githubRequests.Add(1) <= 2 {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"value": "id-token"})
+	}))
+	defer github.Close()
+	portal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if portalRequests.Add(1) == 1 {
+			w.Header().Set("Retry-After", "3")
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "access", "token_type": "Bearer", "expires_in": 600})
+	}))
+	defer portal.Close()
+	t.Setenv(GitHubActionsIDTokenRequestURLVariable, github.URL)
+	t.Setenv(GitHubActionsIDTokenRequestTokenVariable, "request-token")
+	var output bytes.Buffer
+
+	exchange, hint := NewGitHubActionsExchange(GitHubActionsOptions{
+		ServerURL: portal.URL, OrgID: "org_1", RetryAttempts: 3, RetryDelay: time.Second, Output: &output,
+	})
+	require.NotNil(t, exchange, hint)
+	var waits []time.Duration
+	sleep := func(_ context.Context, d time.Duration) error { waits = append(waits, d); return nil }
+	exchange.retry.Sleep = sleep
+	exchange.oauth2.Retry.Sleep = sleep
+
+	credentials, err := exchange.Exchange(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "access", credentials.Token)
+	assert.Equal(t, int32(3), githubRequests.Load())
+	assert.Equal(t, int32(2), portalRequests.Load())
+	assert.Equal(t, []time.Duration{time.Second, 2 * time.Second, 3 * time.Second}, waits, "backoff for GitHub, then the portal's Retry-After")
+	assert.Equal(t, "GitHub OIDC token request failed: GitHub OIDC token request failed: 502 Bad Gateway: . Retrying in 1s (1/3)\n"+
+		"GitHub OIDC token request failed: GitHub OIDC token request failed: 502 Bad Gateway: . Retrying in 2s (2/3)\n"+
+		"Token exchange failed: token endpoint returned 429: (rate limited). Retrying in 3s (1/3)\n", output.String())
+}
+
+func TestGitHubActionsExchange_DoesNotRetryRejectedTokens(t *testing.T) {
+	var githubRequests atomic.Int32
+	github := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		githubRequests.Add(1)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer github.Close()
+	t.Setenv(GitHubActionsIDTokenRequestURLVariable, github.URL)
+	t.Setenv(GitHubActionsIDTokenRequestTokenVariable, "request-token")
+
+	exchange, _ := NewGitHubActionsExchange(GitHubActionsOptions{ServerURL: "http://127.0.0.1:9", OrgID: "org_1", RetryAttempts: 3})
+	_, err := exchange.Exchange(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "401 Unauthorized")
+	assert.Equal(t, int32(1), githubRequests.Load())
 }
 
 func TestGitHubActionsEnvironment_FetchIDTokenDoesNotFollowRedirects(t *testing.T) {

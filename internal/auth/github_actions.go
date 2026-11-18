@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bifrostsec/bifrost-cli/internal/oauth2"
+	"github.com/bifrostsec/bifrost-cli/internal/retry"
 )
 
 // Environment provided to GitHub Actions jobs that have `permissions: id-token: write`,
@@ -86,12 +87,17 @@ func (e GitHubActionsEnvironment) FetchIDToken(ctx context.Context, client *http
 	}
 	resp, err := noRedirect.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to request GitHub OIDC token: %w", err)
+		return "", retry.Transient(fmt.Errorf("failed to request GitHub OIDC token: %w", err), 0)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GitHub OIDC token request failed: %s: %s", resp.Status, string(body))
+		err := fmt.Errorf("GitHub OIDC token request failed: %s: %s", resp.Status, string(body))
+		if retry.IsTransientStatus(resp.StatusCode) {
+			// GitHub's own toolkit retries this request on 5xx as well.
+			return "", retry.Transient(err, retry.RetryAfter(resp, time.Now()))
+		}
+		return "", err
 	}
 
 	var payload struct {
@@ -114,6 +120,13 @@ type GitHubActionsOptions struct {
 	OrgID       string
 	HTTPTimeout time.Duration
 	UserAgent   string
+	// RetryAttempts and RetryDelay govern retries of transient failures when
+	// fetching the OIDC token and when exchanging it; GitHub and the portal
+	// both answer with 429 or 5xx under load.
+	RetryAttempts int
+	RetryDelay    time.Duration
+	// Output receives retry notices; nil disables them.
+	Output io.Writer
 }
 
 // GitHubActionsExchange obtains a portal access token for a GitHub Actions
@@ -123,7 +136,18 @@ type GitHubActionsExchange struct {
 	env    GitHubActionsEnvironment
 	oauth2 *oauth2.Client
 	orgID  string
+	retry  retry.Policy
 	now    func() time.Time
+}
+
+// retryNotifier reports a retry to output in the same shape as the upload client.
+func retryNotifier(output io.Writer, operation string) func(err error, attempt, attempts int, wait time.Duration) {
+	if output == nil {
+		return nil
+	}
+	return func(err error, attempt, attempts int, wait time.Duration) {
+		_, _ = fmt.Fprintf(output, "%s failed: %v. Retrying in %s (%d/%d)\n", operation, err, wait, attempt, attempts)
+	}
 }
 
 // NewGitHubActionsExchange returns the exchange when it can be performed in
@@ -140,14 +164,20 @@ func NewGitHubActionsExchange(opts GitHubActionsOptions) (exchange *GitHubAction
 	if opts.OrgID == "" {
 		return nil, "a GitHub Actions OIDC token is available but no organization id is configured: pass --org-id, set BIFROST_ORG_ID, or run `bifrost config set org_id <id>`"
 	}
+	policy := retry.Policy{Attempts: max(opts.RetryAttempts, 0), Delay: max(opts.RetryDelay, 0)}
+	exchangePolicy := policy
+	exchangePolicy.Notify = retryNotifier(opts.Output, "Token exchange")
+	policy.Notify = retryNotifier(opts.Output, "GitHub OIDC token request")
 	return &GitHubActionsExchange{
 		env: env,
 		oauth2: &oauth2.Client{
 			HTTPClient: &http.Client{Timeout: opts.HTTPTimeout},
 			ServerURL:  opts.ServerURL,
 			UserAgent:  opts.UserAgent,
+			Retry:      exchangePolicy,
 		},
 		orgID: opts.OrgID,
+		retry: policy,
 		now:   time.Now,
 	}, ""
 }
@@ -157,9 +187,15 @@ func (g *GitHubActionsExchange) OrgID() string {
 	return g.orgID
 }
 
-// Exchange fetches the OIDC token and exchanges it for a portal access token.
+// Exchange fetches the OIDC token and exchanges it for a portal access token,
+// retrying transient failures of either request.
 func (g *GitHubActionsExchange) Exchange(ctx context.Context) (Credentials, error) {
-	idToken, err := g.env.FetchIDToken(ctx, g.oauth2.HTTPClient, g.orgID)
+	var idToken string
+	err := g.retry.Do(ctx, func(ctx context.Context) error {
+		var err error
+		idToken, err = g.env.FetchIDToken(ctx, g.oauth2.HTTPClient, g.orgID)
+		return err
+	})
 	if err != nil {
 		return Credentials{}, err
 	}
