@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -231,6 +233,71 @@ func TestCLI_AuthGitHubActionsStoresAccessTokenForLaterCommands(t *testing.T) {
 	})
 	assert.Equal(t, 2, exitCode)
 	assert.Contains(t, stderr, "is for organization "+testOrgID+", not org_other")
+}
+
+func TestCLI_AuthGitHubActionsExportsTokenToLaterStepsByDefault(t *testing.T) {
+	_, credentialsPath := testutil.WriteConfigFiles(t, "", "")
+	fakeGitHubActions(t, testIDToken)
+	portal := newFakePortal(t)
+	githubEnv := filepath.Join(t.TempDir(), "github_env")
+	require.NoError(t, os.WriteFile(githubEnv, []byte("EXISTING=1\n"), 0o600))
+	t.Setenv(auth.GitHubEnvFileVariable, githubEnv)
+
+	exitCode, stdout, stderr := captureOutput(t, func() int {
+		return CLI("1.0", "commit", []string{"--server-url=" + portal.URL, "--org-id=" + testOrgID, "auth", "github-actions"})
+	})
+	assert.Equal(t, 0, exitCode)
+	assert.Equal(t, "::add-mask::"+testExchangedToken+"\n", stdout, "the runner is asked to redact the token")
+	assert.Contains(t, stderr, "Exported access token for organization "+testOrgID+" to the later steps of this job as BIFROST_API_KEY, expires at ")
+	assert.Equal(t, "EXISTING=1\nBIFROST_API_KEY="+testExchangedToken+"\n", testutil.ReadFile(t, githubEnv))
+	_, err := os.Stat(credentialsPath)
+	assert.True(t, os.IsNotExist(err), "nothing is written to disk that could outlive the job")
+
+	// A later step sees the exported variable and uses it without another exchange.
+	t.Setenv("BIFROST_API_KEY", testExchangedToken)
+	path := testutil.WriteSBOM(t)
+	exitCode = CLI("1.0", "commit", []string{"--server-url=" + portal.URL, "--service=test-service", "--service-version=1.0", "sbom", "upload", path})
+	assert.Equal(t, 0, exitCode)
+	assert.Equal(t, int32(1), portal.exchanges.Load())
+	assert.Equal(t, "Bearer "+testExchangedToken, portal.uploadAuthorization())
+}
+
+func TestCLI_AuthGitHubActionsStoreFlag(t *testing.T) {
+	_, credentialsPath := testutil.WriteConfigFiles(t, "", "")
+	fakeGitHubActions(t, testIDToken)
+	portal := newFakePortal(t)
+	githubEnv := filepath.Join(t.TempDir(), "github_env")
+	t.Setenv(auth.GitHubEnvFileVariable, githubEnv)
+
+	exitCode, stdout, _ := captureOutput(t, func() int {
+		return CLI("1.0", "commit", []string{"--server-url=" + portal.URL, "--org-id=" + testOrgID, "auth", "github-actions", "--store", "profile"})
+	})
+	assert.Equal(t, 0, exitCode, "--store profile caches in the credentials file even inside GitHub Actions")
+	assert.Empty(t, stdout)
+	assert.Contains(t, testutil.ReadFile(t, credentialsPath), "access_token = "+testExchangedToken)
+	_, err := os.Stat(githubEnv)
+	assert.True(t, os.IsNotExist(err))
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{"--server-url=" + portal.URL, "--org-id=" + testOrgID, "auth", "github-actions", "--store", "clipboard"})
+	})
+	assert.Equal(t, 2, exitCode)
+	assert.Contains(t, stderr, `unknown token store "clipboard"`)
+
+	exitCode, stderr = captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{"--server-url=" + portal.URL, "--org-id=" + testOrgID, "auth", "github-actions", "--bogus"})
+	})
+	assert.Equal(t, 2, exitCode)
+	assert.Contains(t, stderr, "auth github-actions: flag provided but not defined: -bogus")
+	assert.Contains(t, stderr, "Usage:")
+
+	t.Setenv(auth.GitHubEnvFileVariable, "")
+	exitCode, stderr = captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{"--server-url=" + portal.URL, "--org-id=" + testOrgID, "auth", "github-actions", "--store=github-env"})
+	})
+	assert.Equal(t, 2, exitCode)
+	assert.Contains(t, stderr, "GITHUB_ENV is not set; use --store profile")
+	assert.Equal(t, int32(1), portal.exchanges.Load(), "the store is validated before any exchange")
 }
 
 func TestCLI_AuthGitHubActionsOutsideGitHubActionsFails(t *testing.T) {

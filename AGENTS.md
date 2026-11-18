@@ -63,9 +63,12 @@ split into packages along the three-layer architecture pattern; dependencies onl
   `config list|get|set|unset` and masking follow from the registry.
 - Credential chain order: API key (flag/env/file) > unexpired `access_token` stored in the profile > GitHub Actions
   OIDC token exchange (when `ACTIONS_ID_TOKEN_REQUEST_URL`/`ACTIONS_ID_TOKEN_REQUEST_TOKEN` are set and an
-  `org_id` is configured). `bifrost auth github-actions` performs the exchange and stores `access_token`,
-  `access_token_expires_at`, `access_token_server_url` and `access_token_org_id` in the credentials file; the chain
-  only reuses a cached token for the server (and organization, when one is given) it was issued for.
+  `org_id` is configured). `bifrost auth github-actions` performs the exchange and, when `GITHUB_ENV` is set,
+  exports the token to the later steps of the job as `BIFROST_API_KEY` (printing `::add-mask::` first) so nothing
+  outlives the job on a shared runner; with `--store profile` (the default outside Actions) it stores
+  `access_token`, `access_token_expires_at`, `access_token_server_url` and `access_token_org_id` in the credentials
+  file instead. The chain only reuses a cached token for the server (and organization, when one is given) it was
+  issued for.
   `bifrost auth token` prints the resolved token. The upload task resolves credentials lazily through a
   `credentialCache`, after stdin is staged and again whenever the current token is about to expire.
 - `cli.ResolveOptions` never fails on an invalid stored value; it records it in `ResolvedOptions.Invalid` and

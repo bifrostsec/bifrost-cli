@@ -256,15 +256,17 @@ jobs:
       - run: bifrost --service=my-service --service-version=${{ github.sha }} --image=$IMAGE --git-repo-path=. sbom upload sbom.json
 ```
 
-Alternatively, exchange the token once with `bifrost auth github-actions`, which stores the access token in the runner's
-`~/.bifrost/credentials`. Later steps in the same job then authenticate without `BIFROST_ORG_ID`:
+Alternatively, exchange the token once with `bifrost auth github-actions`. Inside a job it exports the access token to
+the following steps as `BIFROST_API_KEY` through `GITHUB_ENV`, masked in the log, so nothing is written to disk that
+could outlive the job on a shared runner. Later steps then authenticate without `BIFROST_ORG_ID`:
 
 ```yaml
       - run: bifrost --org-id ${{ vars.BIFROST_ORG_ID }} auth github-actions
       - run: bifrost --service=my-service --service-version=${{ github.sha }} sbom upload sbom.json
 ```
 
-On self-hosted runners shared between jobs, prefer the automatic exchange so no token is written to disk.
+Pass `--store profile` to cache the token in `~/.bifrost/credentials` instead, which is the default outside GitHub
+Actions (for example when testing with a locally served OIDC token).
 
 [RFC 8693]: https://www.rfc-editor.org/rfc/rfc8693.html
 

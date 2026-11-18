@@ -101,8 +101,12 @@ func runCLI(ctx context.Context, version, gitCommit string, args []string) int {
 		}
 	case name == "config":
 		task = command.NewConfig(resolved.Config, resolved.Settings, resolved.Profile, remaining[1:])
-	case len(remaining) == 2 && name == "auth" && remaining[1] == "github-actions":
-		task, err = command.NewAuthGitHubActions(resolved.Config, options.githubActionsOptions(version))
+	case len(remaining) >= 2 && name == "auth" && remaining[1] == "github-actions":
+		authOptions, err := parseAuthGitHubActionsArgs(options, version, remaining[2:])
+		if err != nil {
+			return printUsageError(err, fl)
+		}
+		task, err = command.NewAuthGitHubActions(resolved.Config, authOptions)
 		if err != nil {
 			// Not a usage mistake: the environment lacks what the exchange needs.
 			return printError(err)
@@ -169,14 +173,16 @@ func printUsage(output io.Writer, fl *flagutil.AliasedFlagSet) {
 	_, _ = fmt.Fprintf(output, "Usage:\n")
 	_, _ = fmt.Fprintf(output, "  bifrost [options] sbom upload <sbom_path|->\n")
 	_, _ = fmt.Fprintf(output, "  bifrost [options] config [list | list-profiles | get <name> | set <name> <value> | unset <name>]\n")
-	_, _ = fmt.Fprintf(output, "  bifrost [options] auth github-actions\n")
+	_, _ = fmt.Fprintf(output, "  bifrost [options] auth github-actions [--store github-env|profile]\n")
 	_, _ = fmt.Fprintf(output, "  bifrost [options] auth token\n\n")
 	_, _ = fmt.Fprintf(output, "Commands:\n")
 	_, _ = fmt.Fprintf(output, "  sbom upload           Upload one or more SBOM files for a service version\n")
 	_, _ = fmt.Fprintf(output, "  config                Prompt for the API key and server URL and store them in the profile\n")
 	_, _ = fmt.Fprintf(output, "  config list           Show every setting with its effective value and where it comes from\n")
 	_, _ = fmt.Fprintf(output, "  config get|set|unset  Read or change a setting stored in the profile\n")
-	_, _ = fmt.Fprintf(output, "  auth github-actions   Exchange the GitHub Actions OIDC token for an access token and store it in the profile\n")
+	_, _ = fmt.Fprintf(output, "  auth github-actions   Exchange the GitHub Actions OIDC token for an access token and export it to the\n")
+	_, _ = fmt.Fprintf(output, "                        later steps of the job as BIFROST_API_KEY (--store github-env, the default when\n")
+	_, _ = fmt.Fprintf(output, "                        GITHUB_ENV is set) or cache it in the profile (--store profile)\n")
 	_, _ = fmt.Fprintf(output, "  auth token            Print the access token the CLI authenticates with\n\n")
 	_, _ = fmt.Fprintf(output, "Options:\n")
 	fl.PrintDefaults(output)

@@ -23,6 +23,9 @@ const (
 	GitHubActionsIDTokenRequestURLVariable   = "ACTIONS_ID_TOKEN_REQUEST_URL"
 	GitHubActionsIDTokenRequestTokenVariable = "ACTIONS_ID_TOKEN_REQUEST_TOKEN"
 	GitHubActionsIDTokenPermissionHint       = "grant the job `permissions: id-token: write`"
+	// GitHubEnvFileVariable names the file a step appends `NAME=value` lines to
+	// in order to export environment variables to the later steps of its job.
+	GitHubEnvFileVariable = "GITHUB_ENV"
 
 	// GitHubActionsCredentialSource labels credentials obtained through the exchange.
 	GitHubActionsCredentialSource = "GitHub Actions OIDC token exchange"
