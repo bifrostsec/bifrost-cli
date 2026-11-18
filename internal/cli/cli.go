@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/bifrostsec/bifrost-cli/internal/command"
@@ -81,12 +82,7 @@ func runCLI(ctx context.Context, version, gitCommit string, args []string) int {
 	// every other command needs an existing one, which catches a mistyped name.
 	createsProfile := name == "config" || (len(remaining) >= 2 && name == "auth" && remaining[1] == "github-actions")
 	if !createsProfile && options.profile != config.DefaultProfile && !resolved.Config.ProfileExists() {
-		return printError(fmt.Errorf(
-			"profile %q was not found in %s or %s",
-			options.profile,
-			config.DisplayPath(resolved.Config.ConfigPath),
-			config.DisplayPath(resolved.Config.CredentialsPath),
-		))
+		return printError(fmt.Errorf("profile %q was not found %s", options.profile, describeConfigLocations(resolved.Config)))
 	}
 
 	var task command.Task
@@ -129,6 +125,20 @@ func runCLI(ctx context.Context, version, gitCommit string, args []string) int {
 		return printError(err)
 	}
 	return 0
+}
+
+// describeConfigLocations names the files a profile would be read from.
+func describeConfigLocations(cfg *config.Config) string {
+	var locations []string
+	for _, path := range []string{cfg.ConfigPath, cfg.CredentialsPath} {
+		if path != "" {
+			locations = append(locations, config.DisplayPath(path))
+		}
+	}
+	if len(locations) == 0 {
+		return fmt.Sprintf("because no configuration files are available (set %s or %s)", config.ConfigFileEnvironmentVariable, config.CredentialsFileEnvironmentVariable)
+	}
+	return "in " + strings.Join(locations, " or ")
 }
 
 // printWarnings prints one line per problem; err may be nil or a joined error.

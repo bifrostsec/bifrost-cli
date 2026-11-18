@@ -224,6 +224,45 @@ func TestResolveOptions_DefaultFileLocationsUnderHome(t *testing.T) {
 	assert.Equal(t, "home-key", options.apiKey)
 }
 
+func TestCLI_RunsWithoutHomeDirectory(t *testing.T) {
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+	var authorization string
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer httpServer.Close()
+	path := testutil.WriteSBOM(t)
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{"--server-url=" + httpServer.URL, "--api-key=flag-key", "--service=test-service", "--service-version=1.0", "sbom", "upload", path})
+	})
+	assert.Equal(t, 0, exitCode, "everything comes from flags, no home directory is needed: %s", stderr)
+	assert.Empty(t, stderr)
+	assert.Equal(t, "Bearer flag-key", authorization)
+
+	exitCode, stdout, stderr := captureOutput(t, func() int {
+		return CLI("1.0", "commit", []string{"config", "list"})
+	})
+	assert.Equal(t, 0, exitCode)
+	assert.Empty(t, stderr)
+	assert.Contains(t, stdout, "api_key")
+
+	exitCode, stderr = captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{"config", "set", "api_key", "k"})
+	})
+	assert.Equal(t, 2, exitCode, "writing needs a location")
+	assert.Contains(t, stderr, "cannot write credentials file: no home directory")
+	assert.Contains(t, stderr, "set BIFROST_SHARED_CREDENTIALS_FILE to choose a location")
+
+	exitCode, stderr = captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{"--profile=ci", "--api-key=k", "--service=s", "--service-version=1", "sbom", "upload", path})
+	})
+	assert.Equal(t, 2, exitCode)
+	assert.Contains(t, stderr, `profile "ci" was not found because no configuration files are available (set BIFROST_CONFIG_FILE or BIFROST_SHARED_CREDENTIALS_FILE)`)
+}
+
 func TestCLI_UploadUsesAPIKeyFromCredentialsFile(t *testing.T) {
 	var authorization string
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

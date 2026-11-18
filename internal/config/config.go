@@ -39,66 +39,64 @@ const (
 
 // Config holds the parsed config and credentials files together with the selected profile.
 type Config struct {
-	Profile         string
+	Profile string
+	// ConfigPath and CredentialsPath are empty when the default location is
+	// unknown because there is no home directory; the file is then treated
+	// as absent and cannot be written.
 	ConfigPath      string
 	CredentialsPath string
 
+	// unavailable explains why a default file location is unknown.
+	unavailable      error
 	config           *ini.File
 	credentials      *ini.File
 	configDirty      bool
 	credentialsDirty bool
 }
 
-// Load reads the config and credentials files for a profile. Missing files are not an error.
+// Load reads the config and credentials files for a profile. Missing files
+// are not an error, and neither is a missing home directory: a container or
+// function that passes every setting through flags or the environment must
+// still work, so the files are then simply treated as absent.
 func Load(profile string) (*Config, error) {
 	if profile == "" {
 		profile = DefaultProfile
 	}
-	configPath, err := configFilePath()
-	if err != nil {
-		return nil, err
+	c := &Config{Profile: profile}
+	var err error
+	if c.ConfigPath, err = filePath(ConfigFileEnvironmentVariable, ConfigFileName); err != nil {
+		c.unavailable = err
 	}
-	credentialsPath, err := credentialsFilePath()
-	if err != nil {
-		return nil, err
+	if c.CredentialsPath, err = filePath(CredentialsFileEnvironmentVariable, CredentialsFileName); err != nil {
+		c.unavailable = err
 	}
-	config, err := ini.Load(configPath)
-	if err != nil {
+	if c.config, err = loadFile(c.ConfigPath); err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
-	credentials, err := ini.Load(credentialsPath)
-	if err != nil {
+	if c.credentials, err = loadFile(c.CredentialsPath); err != nil {
 		return nil, fmt.Errorf("failed to read credentials file: %w", err)
 	}
-	return &Config{
-		Profile:         profile,
-		ConfigPath:      configPath,
-		CredentialsPath: credentialsPath,
-		config:          config,
-		credentials:     credentials,
-	}, nil
+	return c, nil
 }
 
-func configFilePath() (string, error) {
-	if path := os.Getenv(ConfigFileEnvironmentVariable); path != "" {
+// filePath returns the override from the environment, or the default under
+// the home directory. The error says why no default could be determined.
+func filePath(environmentVariable, fileName string) (string, error) {
+	if path := os.Getenv(environmentVariable); path != "" {
 		return path, nil
 	}
-	return defaultPath(ConfigFileName)
-}
-
-func credentialsFilePath() (string, error) {
-	if path := os.Getenv(CredentialsFileEnvironmentVariable); path != "" {
-		return path, nil
-	}
-	return defaultPath(CredentialsFileName)
-}
-
-func defaultPath(fileName string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to locate home directory for %s: %w", fileName, err)
+		return "", fmt.Errorf("no home directory for the default %s file location (%v)", fileName, err)
 	}
 	return filepath.Join(home, DirName, fileName), nil
+}
+
+func loadFile(path string) (*ini.File, error) {
+	if path == "" {
+		return &ini.File{}, nil
+	}
+	return ini.Load(path)
 }
 
 // ProfileExists reports whether the selected profile has a section in either file.
@@ -186,15 +184,22 @@ func (c *Config) Unset(s Setting) bool {
 	return removed
 }
 
-// Save writes back every file that was modified.
+// Save writes back every file that was modified. It fails when a modified
+// file has no location, pointing at the environment variable that provides one.
 func (c *Config) Save() error {
 	if c.configDirty {
+		if c.ConfigPath == "" {
+			return fmt.Errorf("cannot write config file: %w; set %s to choose a location", c.unavailable, ConfigFileEnvironmentVariable)
+		}
 		if err := c.config.Save(c.ConfigPath); err != nil {
 			return fmt.Errorf("failed to write config file: %w", err)
 		}
 		c.configDirty = false
 	}
 	if c.credentialsDirty {
+		if c.CredentialsPath == "" {
+			return fmt.Errorf("cannot write credentials file: %w; set %s to choose a location", c.unavailable, CredentialsFileEnvironmentVariable)
+		}
 		if err := c.credentials.Save(c.CredentialsPath); err != nil {
 			return fmt.Errorf("failed to write credentials file: %w", err)
 		}

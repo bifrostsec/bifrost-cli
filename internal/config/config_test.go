@@ -207,6 +207,47 @@ func TestLoad_DefaultLocationsUnderHome(t *testing.T) {
 	assert.Equal(t, "/elsewhere/config", DisplayPath("/elsewhere/config"))
 }
 
+func TestLoad_WithoutHomeDirectoryReadsNothingAndCannotWrite(t *testing.T) {
+	t.Setenv("HOME", "")
+	t.Setenv("USERPROFILE", "")
+
+	cfg, err := Load(DefaultProfile)
+	require.NoError(t, err, "a missing home directory must not stop commands that get everything from flags")
+	assert.Empty(t, cfg.ConfigPath)
+	assert.Empty(t, cfg.CredentialsPath)
+	assert.False(t, cfg.ProfileExists())
+	assert.Empty(t, cfg.Profiles())
+	_, ok := cfg.Get(MustSetting("api_key"))
+	assert.False(t, ok)
+
+	fl, values := newFlagSet()
+	resolved, err := Resolve(fl, cfg)
+	require.NoError(t, err)
+	assert.Equal(t, "https://default.example.com", *values["server_url"].(*string))
+	assert.Equal(t, SourceDefault, Find(resolved, "server_url").Source)
+
+	cfg.Set(MustSetting("api_key"), "k")
+	err = cfg.Save()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot write credentials file: no home directory for the default credentials file location")
+	assert.Contains(t, err.Error(), "set BIFROST_SHARED_CREDENTIALS_FILE to choose a location")
+
+	cfg.Set(MustSetting("server_url"), "https://x.example.com")
+	err = cfg.Save()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "set BIFROST_CONFIG_FILE to choose a location")
+
+	// An explicit location works without a home directory.
+	_, credentialsPath := testutil.WriteConfigFiles(t, "", "[default]\napi_key = from-file\n")
+	cfg, err = Load(DefaultProfile)
+	require.NoError(t, err)
+	assert.Equal(t, credentialsPath, cfg.CredentialsPath)
+	value, _ := cfg.Get(MustSetting("api_key"))
+	assert.Equal(t, "from-file", value)
+	cfg.Set(MustSetting("api_key"), "k")
+	require.NoError(t, cfg.Save())
+}
+
 func TestMaskSecret(t *testing.T) {
 	assert.Equal(t, "****", MaskSecret(""))
 	assert.Equal(t, "****", MaskSecret("abcd"))

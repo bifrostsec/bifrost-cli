@@ -196,7 +196,9 @@ org_id = org_01m2fwhfjmfdcv7cm1b23xg7qa
 api_key = <your API token>
 ```
 
-Use `BIFROST_CONFIG_FILE` and `BIFROST_SHARED_CREDENTIALS_FILE` to read the files from other locations.
+Use `BIFROST_CONFIG_FILE` and `BIFROST_SHARED_CREDENTIALS_FILE` to read the files from other locations. When no home
+directory can be determined, for example in a minimal container, the files are treated as absent and everything is
+taken from options and environment variables; set those two variables to use files anyway.
 
 The `config` command manages the files, so you never have to edit them by hand:
 

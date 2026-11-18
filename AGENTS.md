@@ -56,7 +56,9 @@ split into packages along the three-layer architecture pattern; dependencies onl
   INI formatted (`internal/ini`), profiles as `[default]` / `[profile <name>]` (config) and `[<name>]` (credentials).
   `BIFROST_CONFIG_FILE`, `BIFROST_SHARED_CREDENTIALS_FILE`, `BIFROST_PROFILE` and `--profile` override locations
   and the profile. A non-default profile must exist for commands that only read it (`sbom upload`, `auth token`),
-  which catches typos; `config` and `auth github-actions` may create it.
+  which catches typos; `config` and `auth github-actions` may create it. Without a home directory (`HOME` unset)
+  the default file locations are unknown: `config.Load` treats the files as absent so flag/env-only invocations
+  work, and `Config.Save` fails with a hint to set the location variables.
 - Precedence: command-line flag > environment variable > credentials file > config file > default. Both files may
   hold any setting (as in the AWS CLI); `Setting.File` only decides where `config set` writes. Files are saved
   atomically with mode 0600 even when they pre-existed with wider permissions.
