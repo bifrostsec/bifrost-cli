@@ -55,7 +55,8 @@ split into packages along the three-layer architecture pattern; dependencies onl
 - Files follow the AWS CLI layout: `~/.bifrost/config` for general settings, `~/.bifrost/credentials` for secrets,
   INI formatted (`internal/ini`), profiles as `[default]` / `[profile <name>]` (config) and `[<name>]` (credentials).
   `BIFROST_CONFIG_FILE`, `BIFROST_SHARED_CREDENTIALS_FILE`, `BIFROST_PROFILE` and `--profile` override locations
-  and the profile.
+  and the profile. A non-default profile must exist for commands that only read it (`sbom upload`, `auth token`),
+  which catches typos; `config` and `auth github-actions` may create it.
 - Precedence: command-line flag > environment variable > credentials file > config file > default. Both files may
   hold any setting (as in the AWS CLI); `Setting.File` only decides where `config set` writes. Files are saved
   atomically with mode 0600 even when they pre-existed with wider permissions.

@@ -77,8 +77,10 @@ func runCLI(ctx context.Context, version, gitCommit string, args []string) int {
 	} else if err := ValidateOptions(&options, resolved); err != nil {
 		return printUsageError(err, fl)
 	}
-	// `config` may create a new profile, every other command needs an existing one.
-	if name != "config" && options.profile != config.DefaultProfile && !resolved.Config.ProfileExists() {
+	// Commands that write credentials or settings may create a new profile;
+	// every other command needs an existing one, which catches a mistyped name.
+	createsProfile := name == "config" || (len(remaining) >= 2 && name == "auth" && remaining[1] == "github-actions")
+	if !createsProfile && options.profile != config.DefaultProfile && !resolved.Config.ProfileExists() {
 		return printError(fmt.Errorf(
 			"profile %q was not found in %s or %s",
 			options.profile,

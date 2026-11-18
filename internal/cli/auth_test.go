@@ -326,6 +326,31 @@ func TestCLI_AuthGitHubActionsStoreFlag(t *testing.T) {
 	assert.Equal(t, int32(1), portal.exchanges.Load(), "the store is validated before any exchange")
 }
 
+func TestCLI_AuthGitHubActionsInitializesANewProfile(t *testing.T) {
+	_, credentialsPath := testutil.WriteConfigFiles(t, "", "")
+	fakeGitHubActions(t, testIDToken)
+	portal := newFakePortal(t)
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{"--profile=ci", "--server-url=" + portal.URL, "--org-id=" + testOrgID, "auth", "github-actions", "--store=profile"})
+	})
+	assert.Equal(t, 0, exitCode, "a write command may create the profile: %s", stderr)
+	assert.Contains(t, stderr, `in profile "ci"`)
+	assert.Contains(t, testutil.ReadFile(t, credentialsPath), "[ci]\naccess_token = "+testExchangedToken+"\n")
+
+	// The new profile is now usable, and read commands still reject names that do not exist.
+	path := testutil.WriteSBOM(t)
+	exitCode = CLI("1.0", "commit", []string{"--profile=ci", "--server-url=" + portal.URL, "--service=test-service", "--service-version=1.0", "sbom", "upload", path})
+	assert.Equal(t, 0, exitCode)
+	assert.Equal(t, "Bearer "+testExchangedToken, portal.uploadAuthorization())
+
+	exitCode, stderr = captureStderr(t, func() int {
+		return CLI("1.0", "commit", []string{"--profile=typo", "--server-url=" + portal.URL, "--org-id=" + testOrgID, "auth", "token"})
+	})
+	assert.Equal(t, 2, exitCode)
+	assert.Contains(t, stderr, `profile "typo" was not found`)
+}
+
 func TestCLI_AuthGitHubActionsOutsideGitHubActionsFails(t *testing.T) {
 	testutil.WriteConfigFiles(t, "", "")
 
