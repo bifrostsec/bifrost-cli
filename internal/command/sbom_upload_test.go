@@ -3,7 +3,7 @@
 
 //go:build unix
 
-package bifrost
+package command
 
 import (
 	"context"
@@ -18,9 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type unexpectedUploadAPI struct{}
-
-func (unexpectedUploadAPI) UploadSBOMFile(context.Context, string, string, string) error {
+func unexpectedUpload(context.Context, string) error {
 	return errors.New("upload should not be reached")
 }
 
@@ -46,7 +44,7 @@ func newBlockingStdinFIFO(t *testing.T) (stdin *os.File, writer *os.File) {
 	return stdin, result.file
 }
 
-func TestSBOMUploadTask_StdinCancellationCleansUpTemporaryFile(t *testing.T) {
+func TestSBOMUpload_StdinCancellationCleansUpTemporaryFile(t *testing.T) {
 	// This test replaces os.Stdin and must remain serial.
 	tempDir := t.TempDir()
 	t.Setenv("TMPDIR", tempDir)
@@ -63,10 +61,10 @@ func TestSBOMUploadTask_StdinCancellationCleansUpTemporaryFile(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	task := sbomUploadTask{Options: Options{service: "test-service", serviceVersion: "test-version"}}
+	task := sbomUpload{opts: SBOMUploadOptions{Service: "test-service", ServiceVersion: "test-version"}}
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- task.uploadStdinSBOM(ctx, unexpectedUploadAPI{})
+		errCh <- task.uploadStdinSBOM(ctx, unexpectedUpload)
 	}()
 
 	waitForTemporaryStdinSBOM(t, tempDir)

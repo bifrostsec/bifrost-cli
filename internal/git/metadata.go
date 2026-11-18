@@ -1,7 +1,8 @@
 // Copyright 2026 bifrost security
 // SPDX-License-Identifier: Apache-2.0
 
-package bifrost
+// Package git discovers metadata about a local Git repository.
+package git
 
 import (
 	"fmt"
@@ -9,34 +10,37 @@ import (
 	"strings"
 )
 
-type gitMetadata struct {
-	branch    string
-	commitSHA string
-	origin    string
+// Metadata describes the checked out state of a repository.
+type Metadata struct {
+	Branch    string
+	CommitSHA string
+	Origin    string
 }
 
-type gitMetadataDiscovery struct {
-	metadata gitMetadata
-	errors   []error
+// Discovery is the outcome of reading a repository; Errors lists what could not be read.
+type Discovery struct {
+	Metadata Metadata
+	Errors   []error
 }
 
-func discoverGitMetadata(dir string) gitMetadataDiscovery {
+// Discover reads branch, commit and origin from the repository at dir.
+func Discover(dir string) Discovery {
 	// Verify that we are inside a Git repository.
-	insideWorkingTree, err := runGitCommand(dir, "rev-parse", "--is-inside-work-tree")
+	insideWorkingTree, err := run(dir, "rev-parse", "--is-inside-work-tree")
 	if err != nil {
-		return gitMetadataDiscovery{
-			errors: []error{fmt.Errorf("check git work tree: %w", err)},
+		return Discovery{
+			Errors: []error{fmt.Errorf("check git work tree: %w", err)},
 		}
 	}
 	if insideWorkingTree != "true" {
-		return gitMetadataDiscovery{
-			errors: []error{fmt.Errorf("check git work tree: not inside a Git work tree")},
+		return Discovery{
+			Errors: []error{fmt.Errorf("check git work tree: not inside a Git work tree")},
 		}
 	}
 
 	var errors []error
 	read := func(label string, args ...string) string {
-		value, err := runGitCommand(dir, args...)
+		value, err := run(dir, args...)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("%s: %w", label, err))
 		}
@@ -51,19 +55,19 @@ func discoverGitMetadata(dir string) gitMetadataDiscovery {
 	commitSHA := read("read git commit SHA", "rev-parse", "HEAD")
 
 	// Get remote origin
-	origin, _ := runGitCommand(dir, "config", "--get", "remote.origin.url")
+	origin, _ := run(dir, "config", "--get", "remote.origin.url")
 
-	return gitMetadataDiscovery{
-		metadata: gitMetadata{
-			branch:    branch,
-			commitSHA: commitSHA,
-			origin:    origin,
+	return Discovery{
+		Metadata: Metadata{
+			Branch:    branch,
+			CommitSHA: commitSHA,
+			Origin:    origin,
 		},
-		errors: errors,
+		Errors: errors,
 	}
 }
 
-func runGitCommand(dir string, args ...string) (string, error) {
+func run(dir string, args ...string) (string, error) {
 	gitArgs := append([]string{"-C", dir}, args...)
 	output, err := exec.Command("git", gitArgs...).CombinedOutput()
 	message := strings.TrimSpace(string(output))
