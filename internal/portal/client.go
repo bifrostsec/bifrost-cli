@@ -30,17 +30,18 @@ type Client interface {
 
 // ClientConfig configures a Client.
 type ClientConfig struct {
-	ServerURL     string
-	Token         string
-	RetryAttempts int
-	RetryDelay    time.Duration
-	HTTPTimeout   time.Duration
-	RetryOutput   io.Writer
-	GitBranch     string
-	GitCommitSHA  string
-	GitOrigin     string
-	Image         string
-	CliVersion    string
+	ServerURL          string
+	Token              string
+	RetryAttempts      int
+	RetryDelay         time.Duration
+	HTTPTimeout        time.Duration
+	RetryOutput        io.Writer
+	GitBranch          string
+	GitCommitSHA       string
+	GitCommitTimestamp string
+	GitOrigin          string
+	Image              string
+	CliVersion         string
 }
 
 type client struct {
@@ -165,6 +166,9 @@ func (a *client) uploadSBOMOnce(ctx context.Context, service string, serviceVers
 	}
 	if a.cfg.GitCommitSHA != "" {
 		query.Set("git_commit_sha", a.cfg.GitCommitSHA)
+	}
+	if a.cfg.GitCommitTimestamp != "" {
+		query.Set("git_commit_timestamp", a.cfg.GitCommitTimestamp)
 	}
 	if a.cfg.GitOrigin != "" {
 		query.Set("git_origin", a.cfg.GitOrigin)

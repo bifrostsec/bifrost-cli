@@ -82,6 +82,7 @@ func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
 		assert.Equal(t, "1.0", r.URL.Query().Get("version"))
 		assert.Equal(t, "main", r.URL.Query().Get("git_branch"))
 		assert.Equal(t, "abc123", r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, "2026-01-31T12:30:00+01:00", r.URL.Query().Get("git_commit_timestamp"))
 		assert.Equal(t, "https://github.com/example/project.git", r.URL.Query().Get("git_origin"))
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -101,6 +102,7 @@ func TestCLI_ValidCommandWithGitMetadata(t *testing.T) {
 		"--api-key=test-token",
 		"--git-branch=main",
 		"--git-commit-sha=abc123",
+		"--git-commit-timestamp=2026-01-31T12:30:00+01:00",
 		"--git-origin=https://github.com/example/project.git",
 		"sbom", "upload", path,
 	}
@@ -116,11 +118,13 @@ func TestCLI_ValidCommandWithGitRepoPathCurrentDirectory(t *testing.T) {
 	branch := "feature/auto-git-metadata"
 	origin := "https://github.com/example/auto-project.git"
 	repoDir, commitSHA := createTestGitRepo(t, branch, origin)
+	commitTimestamp := runTestGit(t, repoDir, "show", "-s", "--format=%cI", "HEAD")
 	chdir(t, repoDir)
 
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, branch, r.URL.Query().Get("git_branch"))
 		assert.Equal(t, commitSHA, r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, commitTimestamp, r.URL.Query().Get("git_commit_timestamp"))
 		assert.Equal(t, origin, r.URL.Query().Get("git_origin"))
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -144,6 +148,7 @@ func TestCLI_ValidCommandWithGitRepoPathCurrentDirectory(t *testing.T) {
 	})
 	assert.Equal(t, 0, exitCode)
 	assertGitMetadataDetection(t, stderr, ".", branch, commitSHA, origin)
+	assert.Contains(t, stderr, fmt.Sprintf("  git_commit_timestamp=%q\n", commitTimestamp))
 }
 
 func TestCLI_DeprecatedGitAutoDetectUsesCurrentDirectory(t *testing.T) {
@@ -429,6 +434,7 @@ func TestCLI_ValidCommandWithGitRepoPathOutsideGitRepoPrintsError(t *testing.T) 
 	})
 	assert.Equal(t, 0, exitCode)
 	assertGitMetadataDetection(t, stderr, ".", "", "", "")
+	assert.Contains(t, stderr, "  git_commit_timestamp=\"\"\n")
 	assert.Contains(t, stderr, "  error=\"check git work tree:")
 	assert.Contains(t, stderr, "git -C \\\".\\\" rev-parse --is-inside-work-tree")
 }
@@ -662,9 +668,11 @@ func assertNoGitMetadataQuery(t *testing.T, r *http.Request) {
 	query := r.URL.Query()
 	_, hasGitBranch := query["git_branch"]
 	_, hasGitCommitSHA := query["git_commit_sha"]
+	_, hasGitCommitTimestamp := query["git_commit_timestamp"]
 	_, hasGitOrigin := query["git_origin"]
 	assert.False(t, hasGitBranch)
 	assert.False(t, hasGitCommitSHA)
+	assert.False(t, hasGitCommitTimestamp)
 	assert.False(t, hasGitOrigin)
 }
 
@@ -956,6 +964,23 @@ func TestCLI_InvalidHTTPTimeout(t *testing.T) {
 			assert.Equal(t, 2, exitCode)
 		})
 	}
+}
+
+func TestCLI_InvalidGitCommitTimestamp(t *testing.T) {
+	args := []string{
+		"--server-url=https://portal.bifrostsec.com",
+		"--service=test-service",
+		"--service-version=1.0",
+		"--api-key=test-token",
+		"--git-commit-timestamp=2026-01-31 12:30:00",
+		"sbom", "upload", "test-sbom.json",
+	}
+
+	exitCode, stderr := captureStderr(t, func() int {
+		return CLI("1.0", "commit", args)
+	})
+	assert.Equal(t, 2, exitCode)
+	assert.Contains(t, stderr, "git commit timestamp must be an RFC 3339 timestamp")
 }
 
 func TestRegisterOptions_ParsesHTTPTimeout(t *testing.T) {

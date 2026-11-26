@@ -33,21 +33,22 @@ const (
 // Options is the normalized state of one invocation after every configuration
 // source has been applied.
 type Options struct {
-	ServerURL      string
-	profile        string
-	apiKey         string
-	orgID          string
-	service        string
-	serviceVersion string
-	image          string
-	retryAttempts  int
-	retryDelay     time.Duration
-	httpTimeout    time.Duration
-	gitBranch      string
-	gitCommitSHA   string
-	gitOrigin      string
-	gitRepoPath    string
-	gitAutoDetect  bool // Deprecated: retained for the legacy flag and environment variable.
+	ServerURL          string
+	profile            string
+	apiKey             string
+	orgID              string
+	service            string
+	serviceVersion     string
+	image              string
+	retryAttempts      int
+	retryDelay         time.Duration
+	httpTimeout        time.Duration
+	gitBranch          string
+	gitCommitSHA       string
+	gitCommitTimestamp string
+	gitOrigin          string
+	gitRepoPath        string
+	gitAutoDetect      bool // Deprecated: retained for the legacy flag and environment variable.
 }
 
 // RegisterOptions binds the command-line flags to opts. Every setting in
@@ -65,6 +66,7 @@ func RegisterOptions(fl *flag.FlagSet, opts *Options) {
 	fl.DurationVar(&opts.httpTimeout, "http-timeout", portal.DefaultHTTPTimeout, "Maximum duration to wait for an HTTP request (or BIFROST_HTTP_TIMEOUT environment variable, or http_timeout setting)")
 	fl.StringVar(&opts.gitBranch, "git-branch", "", "Optional Git branch name for the uploaded SBOM")
 	fl.StringVar(&opts.gitCommitSHA, "git-commit-sha", "", "Optional Git commit SHA for the uploaded SBOM")
+	fl.StringVar(&opts.gitCommitTimestamp, "git-commit-timestamp", "", "Optional Git commit timestamp (RFC 3339) for the uploaded SBOM")
 	fl.StringVar(&opts.gitOrigin, "git-origin", "", "Optional Git origin URL for the uploaded SBOM")
 	fl.StringVar(&opts.gitRepoPath, gitRepoPathFlag, "", "Git repository path used for automatic Git metadata detection (or BIFROST_GIT_REPO_PATH environment variable, or git_repo_path setting)")
 	fl.BoolVar(&opts.gitAutoDetect, gitAutoDetectFlag, false, "DEPRECATED: use --git-repo-path=.")
@@ -138,6 +140,11 @@ func ValidateOptions(opts *Options, resolved *ResolvedOptions) error {
 	if opts.httpTimeout <= 0 {
 		return fmt.Errorf("HTTP timeout must be greater than zero")
 	}
+	if opts.gitCommitTimestamp != "" {
+		if _, err := time.Parse(time.RFC3339, opts.gitCommitTimestamp); err != nil {
+			return fmt.Errorf("git commit timestamp must be an RFC 3339 timestamp, e.g. 2026-01-31T12:30:00+01:00")
+		}
+	}
 	return nil
 }
 
@@ -203,18 +210,19 @@ func isDeprecatedGitAutoDetectSet(fl *flag.FlagSet, opts *Options) bool {
 // sbomUploadOptions maps the resolved options onto the upload command's inputs.
 func (o Options) sbomUploadOptions(cliVersion string) command.SBOMUploadOptions {
 	return command.SBOMUploadOptions{
-		ServerURL:      o.ServerURL,
-		Service:        o.service,
-		ServiceVersion: o.serviceVersion,
-		Image:          o.image,
-		RetryAttempts:  o.retryAttempts,
-		RetryDelay:     o.retryDelay,
-		HTTPTimeout:    o.httpTimeout,
-		GitBranch:      o.gitBranch,
-		GitCommitSHA:   o.gitCommitSHA,
-		GitOrigin:      o.gitOrigin,
-		GitRepoPath:    o.gitRepoPath,
-		CLIVersion:     cliVersion,
+		ServerURL:          o.ServerURL,
+		Service:            o.service,
+		ServiceVersion:     o.serviceVersion,
+		Image:              o.image,
+		RetryAttempts:      o.retryAttempts,
+		RetryDelay:         o.retryDelay,
+		HTTPTimeout:        o.httpTimeout,
+		GitBranch:          o.gitBranch,
+		GitCommitSHA:       o.gitCommitSHA,
+		GitCommitTimestamp: o.gitCommitTimestamp,
+		GitOrigin:          o.gitOrigin,
+		GitRepoPath:        o.gitRepoPath,
+		CLIVersion:         cliVersion,
 	}
 }
 

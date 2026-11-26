@@ -17,16 +17,17 @@ import (
 
 // SBOMUploadOptions are the resolved inputs of `bifrost sbom upload`.
 type SBOMUploadOptions struct {
-	ServerURL      string
-	Service        string
-	ServiceVersion string
-	Image          string
-	RetryAttempts  int
-	RetryDelay     time.Duration
-	HTTPTimeout    time.Duration
-	GitBranch      string
-	GitCommitSHA   string
-	GitOrigin      string
+	ServerURL          string
+	Service            string
+	ServiceVersion     string
+	Image              string
+	RetryAttempts      int
+	RetryDelay         time.Duration
+	HTTPTimeout        time.Duration
+	GitBranch          string
+	GitCommitSHA       string
+	GitCommitTimestamp string
+	GitOrigin          string
 	// GitRepoPath enables Git metadata detection for fields left empty.
 	GitRepoPath string
 	CLIVersion  string
@@ -60,7 +61,7 @@ func (c *credentialCache) Token(ctx context.Context) (string, error) {
 	return c.current.Token, nil
 }
 
-const gitMetadataDetectionMessage = "Git metadata detection from %s:\n  git_branch=%q\n  git_commit_sha=%q\n  git_origin=%q\n"
+const gitMetadataDetectionMessage = "Git metadata detection from %s:\n  git_branch=%q\n  git_commit_sha=%q\n  git_commit_timestamp=%q\n  git_origin=%q\n"
 
 // NewSBOMUpload validates the options and prepares the upload of paths, where
 // "-" stands for standard input.
@@ -125,16 +126,17 @@ func (t sbomUpload) Run(ctx context.Context) error {
 
 func (t sbomUpload) newClient(token string) portal.Client {
 	return portal.NewClient(portal.ClientConfig{
-		ServerURL:     t.opts.ServerURL,
-		Token:         token,
-		RetryAttempts: t.opts.RetryAttempts,
-		RetryDelay:    t.opts.RetryDelay,
-		HTTPTimeout:   t.opts.HTTPTimeout,
-		GitBranch:     t.opts.GitBranch,
-		GitCommitSHA:  t.opts.GitCommitSHA,
-		GitOrigin:     t.opts.GitOrigin,
-		Image:         t.opts.Image,
-		CliVersion:    t.opts.CLIVersion,
+		ServerURL:          t.opts.ServerURL,
+		Token:              token,
+		RetryAttempts:      t.opts.RetryAttempts,
+		RetryDelay:         t.opts.RetryDelay,
+		HTTPTimeout:        t.opts.HTTPTimeout,
+		GitBranch:          t.opts.GitBranch,
+		GitCommitSHA:       t.opts.GitCommitSHA,
+		GitCommitTimestamp: t.opts.GitCommitTimestamp,
+		GitOrigin:          t.opts.GitOrigin,
+		Image:              t.opts.Image,
+		CliVersion:         t.opts.CLIVersion,
 	})
 }
 
@@ -145,6 +147,7 @@ func printGitMetadataDetection(gitRepoPath string, discovery git.Discovery) {
 		gitRepoPath,
 		discovery.Metadata.Branch,
 		discovery.Metadata.CommitSHA,
+		discovery.Metadata.CommitTimestamp,
 		discovery.Metadata.Origin,
 	)
 	for _, err := range discovery.Errors {
@@ -153,6 +156,10 @@ func printGitMetadataDetection(gitRepoPath string, discovery git.Discovery) {
 }
 
 func applyGitMetadata(opts SBOMUploadOptions, metadata git.Metadata) SBOMUploadOptions {
+	// The detected timestamp belongs to the detected commit, so it is not applied to an explicitly provided other commit.
+	if opts.GitCommitTimestamp == "" && (opts.GitCommitSHA == "" || opts.GitCommitSHA == metadata.CommitSHA) {
+		opts.GitCommitTimestamp = metadata.CommitTimestamp
+	}
 	if opts.GitBranch == "" {
 		opts.GitBranch = metadata.Branch
 	}

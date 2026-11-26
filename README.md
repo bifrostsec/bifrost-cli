@@ -122,7 +122,7 @@ You can control retry behavior for transient upload failures:
 Git metadata is optional. You can attach it manually:
 
 ```bash
-./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 --git-branch=main --git-commit-sha=abc123 --git-origin=https://github.com/example/project.git sbom upload /path/to/sbom.json
+./bifrost --service=my-service --service-version=1.2.3 --image=registry.example.com/team/app:1.2.3 --git-branch=main --git-commit-sha=abc123 --git-commit-timestamp=2026-01-31T12:30:00+01:00 --git-origin=https://github.com/example/project.git sbom upload /path/to/sbom.json
 ```
 
 You can also automatically fill in missing Git metadata by providing the repository path. Use `.` for the current
@@ -144,6 +144,9 @@ The repository path can also be exported as an environment variable:
 export BIFROST_GIT_REPO_PATH=.
 ./bifrost --service=my-service --service-version=1.2.3 sbom upload /path/to/sbom.json
 ```
+
+The detected commit timestamp is the committer date of `HEAD`. It is only attached when the commit SHA is detected
+too, or when an explicit `--git-commit-sha` matches `HEAD`.
 
 When neither `--git-repo-path` nor `BIFROST_GIT_REPO_PATH` is provided, bifrost does not automatically detect Git
 metadata.
@@ -279,24 +282,25 @@ IP, which GitHub-hosted runners share, so a 429 there is normal under load.
 
 ## Options
 
-| Option              | Required    | Environment variable(s)                                 | Description                                                                                                                                           |
-|---------------------|-------------|---------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `--api-key`         | Conditional | `BIFROST_API_KEY`                                       | Bifrost API key used for authentication. Not needed when an access token is stored by `bifrost auth` or when running in GitHub Actions with `--org-id`. |
-| `--profile`         | No          | `BIFROST_PROFILE`                                       | Profile to read from the configuration files. Defaults to `default`.                                                                                  |
-| `--org-id`          | No          | `BIFROST_ORG_ID`                                        | Bifrost organization id used to exchange a GitHub Actions OIDC token for an access token.                                                             |
-| `--service`         | Yes         | `SERVICE`                                               | Name of the service.                                                                                                                                  |
-| `--service-version` | Conditional | `SERVICE_VERSION`                                       | Service version for the uploaded SBOM. Required unless an image is provided.                                                                          |
-| `--image`           | Conditional | `IMAGE`                                                 | Container image reference for the uploaded SBOM. Required unless a service version is provided.                                                       |
-| `--server-url`      | No          | `BIFROST_SERVER_URL`, `SERVER_URL`                      | URL to the bifrost server.                                                                                                                            |
-| `--retry-attempts`  | No          | `BIFROST_RETRY_ATTEMPTS`                                | Number of retry attempts for transient upload and authentication failures.                                                                            |
-| `--retry-delay`     | No          | `BIFROST_RETRY_DELAY`                                   | Delay between upload retry attempts; authentication retries double it each time and honour `Retry-After`.                                             |
-| `--http-timeout`    | No          | `BIFROST_HTTP_TIMEOUT`                                  | Maximum duration to wait for an HTTP request. Defaults to 30 seconds.                                                                                 |
-| `--git-branch`      | No          |                                                         | Git branch name to attach to the upload.                                                                                                              |
-| `--git-commit-sha`  | No          |                                                         | Git commit SHA to attach to the upload.                                                                                                               |
-| `--git-origin`      | No          |                                                         | Git origin URL to attach to the upload.                                                                                                               |
-| `--git-repo-path`   | No          | `BIFROST_GIT_REPO_PATH`                                 | Git repository path used for automatic Git metadata detection.                                                                                        |
-| `--version`, `-V`   | No          |                                                         | Print the CLI version and build commit, then exit.                                                                                                    |
-| `--help`, `-h`      | No          |                                                         | Show help and exit.                                                                                                                                   |
+| Option                   | Required    | Environment variable(s)                                 | Description                                                                                                                                           |
+|--------------------------|-------------|---------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--api-key`              | Conditional | `BIFROST_API_KEY`                                       | Bifrost API key used for authentication. Not needed when an access token is stored by `bifrost auth` or when running in GitHub Actions with `--org-id`. |
+| `--profile`              | No          | `BIFROST_PROFILE`                                       | Profile to read from the configuration files. Defaults to `default`.                                                                                  |
+| `--org-id`               | No          | `BIFROST_ORG_ID`                                        | Bifrost organization id used to exchange a GitHub Actions OIDC token for an access token.                                                             |
+| `--service`              | Yes         | `SERVICE`                                               | Name of the service.                                                                                                                                  |
+| `--service-version`      | Conditional | `SERVICE_VERSION`                                       | Service version for the uploaded SBOM. Required unless an image is provided.                                                                          |
+| `--image`                | Conditional | `IMAGE`                                                 | Container image reference for the uploaded SBOM. Required unless a service version is provided.                                                       |
+| `--server-url`           | No          | `BIFROST_SERVER_URL`, `SERVER_URL`                      | URL to the bifrost server.                                                                                                                            |
+| `--retry-attempts`       | No          | `BIFROST_RETRY_ATTEMPTS`                                | Number of retry attempts for transient upload and authentication failures.                                                                            |
+| `--retry-delay`          | No          | `BIFROST_RETRY_DELAY`                                   | Delay between upload retry attempts; authentication retries double it each time and honour `Retry-After`.                                             |
+| `--http-timeout`         | No          | `BIFROST_HTTP_TIMEOUT`                                  | Maximum duration to wait for an HTTP request. Defaults to 30 seconds.                                                                                 |
+| `--git-branch`           | No          |                                                         | Git branch name to attach to the upload.                                                                                                              |
+| `--git-commit-sha`       | No          |                                                         | Git commit SHA to attach to the upload.                                                                                                               |
+| `--git-commit-timestamp` | No          |                                                         | Git commit timestamp (RFC 3339) to attach to the upload.                                                                                              |
+| `--git-origin`           | No          |                                                         | Git origin URL to attach to the upload.                                                                                                               |
+| `--git-repo-path`        | No          | `BIFROST_GIT_REPO_PATH`                                 | Git repository path used for automatic Git metadata detection.                                                                                        |
+| `--version`, `-V`        | No          |                                                         | Print the CLI version and build commit, then exit.                                                                                                    |
+| `--help`, `-h`           | No          |                                                         | Show help and exit.                                                                                                                                   |
 
 Options marked with an environment variable can also be stored in the configuration files under the setting name with
 underscores, e.g. `server_url` for `--server-url`. `BIFROST_CONFIG_FILE` and `BIFROST_SHARED_CREDENTIALS_FILE` override
