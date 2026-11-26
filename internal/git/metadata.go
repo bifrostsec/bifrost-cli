@@ -12,9 +12,10 @@ import (
 
 // Metadata describes the checked out state of a repository.
 type Metadata struct {
-	Branch    string
-	CommitSHA string
-	Origin    string
+	Branch          string
+	CommitSHA       string
+	CommitTimestamp string
+	Origin          string
 }
 
 // Discovery is the outcome of reading a repository; Errors lists what could not be read.
@@ -23,7 +24,7 @@ type Discovery struct {
 	Errors   []error
 }
 
-// Discover reads branch, commit and origin from the repository at dir.
+// Discover reads branch, commit SHA, commit timestamp and origin from the repository at dir.
 func Discover(dir string) Discovery {
 	// Verify that we are inside a Git repository.
 	insideWorkingTree, err := run(dir, "rev-parse", "--is-inside-work-tree")
@@ -53,15 +54,18 @@ func Discover(dir string) Discovery {
 		branch = ""
 	}
 	commitSHA := read("read git commit SHA", "rev-parse", "HEAD")
+	// Committer date in strict ISO 8601. Signature output is disabled since it would be mixed into the value.
+	commitTimestamp := read("read git commit timestamp", "show", "-s", "--no-show-signature", "--format=%cI", "HEAD")
 
 	// Get remote origin
 	origin, _ := run(dir, "config", "--get", "remote.origin.url")
 
 	return Discovery{
 		Metadata: Metadata{
-			Branch:    branch,
-			CommitSHA: commitSHA,
-			Origin:    origin,
+			Branch:          branch,
+			CommitSHA:       commitSHA,
+			CommitTimestamp: commitTimestamp,
+			Origin:          origin,
 		},
 		Errors: errors,
 	}

@@ -42,9 +42,11 @@ func TestClient_UploadSBOM(t *testing.T) {
 		assert.Empty(t, query.Get("image"))
 		_, hasGitBranch := query["git_branch"]
 		_, hasGitCommitSHA := query["git_commit_sha"]
+		_, hasGitCommitTimestamp := query["git_commit_timestamp"]
 		_, hasGitOrigin := query["git_origin"]
 		assert.False(t, hasGitBranch)
 		assert.False(t, hasGitCommitSHA)
+		assert.False(t, hasGitCommitTimestamp)
 		assert.False(t, hasGitOrigin)
 
 		// Verify that request body is being read
@@ -106,11 +108,13 @@ func TestClient_UploadSBOM_IncludesVersionAndGitMetadataQueryParams(t *testing.T
 	serviceVersion := "test-version"
 	gitBranch := "feature/deployments & scans"
 	gitCommitSHA := "abc123+digest"
+	gitCommitTimestamp := "2026-01-31T12:30:00+01:00"
 	gitOrigin := "https://github.com/example/project.git?ref=main&token=a+b"
 	expectedQuery := url.Values{}
 	expectedQuery.Set("version", serviceVersion)
 	expectedQuery.Set("git_branch", gitBranch)
 	expectedQuery.Set("git_commit_sha", gitCommitSHA)
+	expectedQuery.Set("git_commit_timestamp", gitCommitTimestamp)
 	expectedQuery.Set("git_origin", gitOrigin)
 
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -118,6 +122,7 @@ func TestClient_UploadSBOM_IncludesVersionAndGitMetadataQueryParams(t *testing.T
 		assert.Equal(t, serviceVersion, r.URL.Query().Get("version"))
 		assert.Equal(t, gitBranch, r.URL.Query().Get("git_branch"))
 		assert.Equal(t, gitCommitSHA, r.URL.Query().Get("git_commit_sha"))
+		assert.Equal(t, gitCommitTimestamp, r.URL.Query().Get("git_commit_timestamp"))
 		assert.Equal(t, gitOrigin, r.URL.Query().Get("git_origin"))
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -133,6 +138,7 @@ func TestClient_UploadSBOM_IncludesVersionAndGitMetadataQueryParams(t *testing.T
 	cfg := newTestClientConfig(httpServer.URL)
 	cfg.GitBranch = gitBranch
 	cfg.GitCommitSHA = gitCommitSHA
+	cfg.GitCommitTimestamp = gitCommitTimestamp
 	cfg.GitOrigin = gitOrigin
 
 	api := NewClient(cfg)

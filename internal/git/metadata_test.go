@@ -5,6 +5,7 @@ package git
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,10 +41,11 @@ func TestDiscover_ReadsBranchCommitAndOrigin(t *testing.T) {
 	runGit(t, dir, "add", "file.txt")
 	runGit(t, dir, "commit", "-m", "initial")
 	commit := runGit(t, dir, "rev-parse", "HEAD")
+	commitTimestamp := runGit(t, dir, "show", "-s", "--format=%cI", "HEAD")
 
 	discovery := Discover(dir)
 	assert.Empty(t, discovery.Errors)
-	assert.Equal(t, Metadata{Branch: "feature/discover", CommitSHA: commit, Origin: "https://github.com/example/project.git"}, discovery.Metadata)
+	assert.Equal(t, Metadata{Branch: "feature/discover", CommitSHA: commit, CommitTimestamp: commitTimestamp, Origin: "https://github.com/example/project.git"}, discovery.Metadata)
 
 	// A detached HEAD has no branch name.
 	runGit(t, dir, "checkout", "--detach")
@@ -51,6 +53,37 @@ func TestDiscover_ReadsBranchCommitAndOrigin(t *testing.T) {
 	assert.Empty(t, discovery.Errors)
 	assert.Empty(t, discovery.Metadata.Branch)
 	assert.Equal(t, commit, discovery.Metadata.CommitSHA)
+}
+
+func TestDiscover_ReadsCommitterTimestampWithoutSignatureOutput(t *testing.T) {
+	dir := t.TempDir()
+	runGit(t, dir, "init")
+
+	// A commit with a signature that cannot be verified makes git print verification
+	// errors when log.showSignature is enabled.
+	tree := runGit(t, dir, "write-tree")
+	commitObject := fmt.Sprintf(
+		"tree %s\n"+
+			"author Test User <test@example.com> 1769855400 +0100\n"+
+			"committer Test User <test@example.com> 1769859000 +0100\n"+
+			"gpgsig -----BEGIN PGP SIGNATURE-----\n"+
+			" \n"+
+			" invalid\n"+
+			" -----END PGP SIGNATURE-----\n"+
+			"\n"+
+			"signed commit\n",
+		tree,
+	)
+	commitObjectPath := filepath.Join(t.TempDir(), "commit")
+	require.NoError(t, os.WriteFile(commitObjectPath, []byte(commitObject), 0o644))
+	commit := runGit(t, dir, "hash-object", "-t", "commit", "-w", commitObjectPath)
+	runGit(t, dir, "update-ref", "HEAD", commit)
+	runGit(t, dir, "config", "log.showSignature", "true")
+
+	discovery := Discover(dir)
+	assert.Empty(t, discovery.Errors)
+	assert.Equal(t, commit, discovery.Metadata.CommitSHA)
+	assert.Equal(t, "2026-01-31T12:30:00+01:00", discovery.Metadata.CommitTimestamp)
 }
 
 func TestDiscover_OutsideRepositoryReportsError(t *testing.T) {
